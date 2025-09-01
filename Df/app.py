@@ -5,7 +5,6 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
@@ -16,7 +15,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER
 
-# استيراد المكتبات الجديدة
+# دعم العربية
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -25,13 +24,13 @@ app = Flask(__name__)
 CORS(app)
 
 # بيانات بوت تيليجرام
-BOT_TOKEN = '8214786867:AAHsLBghSsF2le7Tx_rsLQd6GaXFWVgs_GA'
-CHAT_ID = '7836619198'
+BOT_TOKEN = 'ضع_توكن_البوت_هنا'
+CHAT_ID = 'ضع_ايدي_المحادثة_هنا'
 
 # موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
-# تسجيل خطوط عربية لإنشاء ملف PDF
+# تسجيل خطوط عربية
 try:
     pdfmetrics.registerFont(TTFont('Tajawal', 'Tajawal-Regular.ttf'))
     pdfmetrics.registerFont(TTFont('Tajawal-Bold', 'Tajawal-Bold.ttf'))
@@ -42,38 +41,34 @@ except Exception as e:
     ARABIC_FONT = 'Helvetica'
     ARABIC_FONT_BOLD = 'Helvetica-Bold'
 
-# دالة مساعدة لمعالجة النصوص العربية
-def process_arabic_text(text):
-    reshaped_text = arabic_reshaper.reshape(text)
-    bidi_text = get_display(reshaped_text)
+# دالة لمعالجة النص العربي (حروف متصلة + RTL)
+def rtl(text):
+    if not text:
+        return ""
+    reshaped_text = arabic_reshaper.reshape(text)   # توصيل الحروف
+    bidi_text = get_display(reshaped_text)          # عكس الاتجاه RTL
     return bidi_text
 
-# دالة لحساب المسافة بين نقطتين جغرافيتين
+# دالة لحساب المسافة
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371e3
     φ1 = math.radians(lat1)
     φ2 = math.radians(lat2)
     Δφ = math.radians(lat2 - lat1)
     Δλ = math.radians(lon2 - lon1)
-
     a = math.sin(Δφ / 2) ** 2 + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
     return R * c
 
-# دالة لإرسال رسالة نصية إلى تيليجرام
+# إرسال رسالة نصية
 def send_telegram_message(text, chat_id=CHAT_ID):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': chat_id,
-        'text': text,
-        'parse_mode': 'HTML'
-    }
+    payload = {'chat_id': chat_id, 'text': text, 'parse_mode': 'HTML'}
     response = requests.post(url, json=payload)
     print(f"Telegram API response (message): {response.json()}")
     return response
 
-# دالة لإرسال ملف PDF إلى تيليجرام
+# إرسال ملف PDF
 def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
     print(f"Attempting to send document from path: {file_path}")
     if not os.path.exists(file_path):
@@ -83,10 +78,7 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
     try:
         with open(file_path, 'rb') as f:
             files = {'document': f}
-            payload = {
-                'chat_id': chat_id,
-                'caption': caption
-            }
+            payload = {'chat_id': chat_id, 'caption': caption}
             response = requests.post(url, data=payload, files=files)
             print(f"Telegram API response (document): {response.json()}")
             return response
@@ -97,7 +89,7 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
             os.remove(file_path)
             print(f"PDF file removed: {file_path}")
 
-# دالة لإنشاء فاتورة PDF
+# إنشاء فاتورة PDF
 def create_order_pdf(order_details, filename="order.pdf"):
     print(f"Attempting to create PDF: {filename}")
     try:
@@ -113,7 +105,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             spaceAfter=30,
             fontSize=18
         )
-        
+
         normal_style = ParagraphStyle(
             'CustomNormal',
             parent=styles['Normal'],
@@ -122,7 +114,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             spaceAfter=12,
             fontSize=12
         )
-        
+
         bold_style = ParagraphStyle(
             'CustomBold',
             parent=styles['Normal'],
@@ -132,22 +124,22 @@ def create_order_pdf(order_details, filename="order.pdf"):
             fontSize=12
         )
 
-        story.append(Paragraph(process_arabic_text("سوبر ماركت العراق"), title_style))
+        story.append(Paragraph(rtl("سوبر ماركت العراق"), title_style))
         story.append(Spacer(1, 0.2 * inch))
 
-        story.append(Paragraph(process_arabic_text(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), normal_style))
+        story.append(Paragraph(rtl(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), normal_style))
         story.append(Spacer(1, 0.3 * inch))
 
-        story.append(Paragraph(process_arabic_text(f"الاسم: {order_details['customer']['name']}"), bold_style))
-        story.append(Paragraph(process_arabic_text(f"الهاتف: {order_details['customer']['phone']}"), bold_style))
+        story.append(Paragraph(rtl(f"الاسم: {order_details['customer']['name']}"), bold_style))
+        story.append(Paragraph(rtl(f"الهاتف: {order_details['customer']['phone']}"), bold_style))
         story.append(Spacer(1, 0.3 * inch))
 
         table_data = [
             [
-                Paragraph(process_arabic_text("<b>المنتج</b>"), bold_style),
-                Paragraph(process_arabic_text("<b>الكمية</b>"), bold_style),
-                Paragraph(process_arabic_text("<b>السعر</b>"), bold_style),
-                Paragraph(process_arabic_text("<b>الإجمالي</b>"), bold_style),
+                Paragraph(rtl("المنتج"), bold_style),
+                Paragraph(rtl("الكمية"), bold_style),
+                Paragraph(rtl("السعر"), bold_style),
+                Paragraph(rtl("الإجمالي"), bold_style),
             ]
         ]
 
@@ -156,10 +148,10 @@ def create_order_pdf(order_details, filename="order.pdf"):
             item_total = item_data['price'] * item_data['quantity']
             total_price_num += item_total
             table_data.append([
-                Paragraph(process_arabic_text(item_name), normal_style),
-                Paragraph(process_arabic_text(str(item_data['quantity'])), normal_style),
-                Paragraph(process_arabic_text(f"{item_data['price']:,.0f} د.ع"), normal_style),
-                Paragraph(process_arabic_text(f"{item_total:,.0f} د.ع"), normal_style)
+                Paragraph(rtl(item_name), normal_style),
+                Paragraph(rtl(str(item_data['quantity'])), normal_style),
+                Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), normal_style),
+                Paragraph(rtl(f"{item_total:,.0f} د.ع"), normal_style)
             ])
 
         table_style = TableStyle([
@@ -188,9 +180,9 @@ def create_order_pdf(order_details, filename="order.pdf"):
             spaceBefore=20,
             fontSize=14
         )
-        story.append(Paragraph(process_arabic_text(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع"), total_style))
+        story.append(Paragraph(rtl(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع"), total_style))
         story.append(Spacer(1, 0.5 * inch))
-        
+
         qr_img_path = None
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
@@ -199,29 +191,29 @@ def create_order_pdf(order_details, filename="order.pdf"):
             qr_img = qrcode.make(qr_data)
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
-            
-            story.append(Paragraph(process_arabic_text("امسح الباركود للوصول إلى موقع العميل:"), normal_style))
+
+            story.append(Paragraph(rtl("امسح الباركود للوصول إلى موقع العميل:"), normal_style))
             story.append(Spacer(1, 0.2 * inch))
-            
+
             img = Image(qr_img_path)
             img.drawHeight = 2*inch
             img.drawWidth = 2*inch
             img.hAlign = 'CENTER'
             story.append(img)
-            
+
         doc.build(story)
         print(f"PDF created successfully: {filename}")
         return filename
-        
+
     except Exception as e:
         print(f"Error creating PDF: {e}")
         return None
     finally:
-        if qr_img_path and os.path.exists(qr_img_path):
+        if 'qr_img_path' in locals() and qr_img_path and os.path.exists(qr_img_path):
             os.remove(qr_img_path)
             print(f"QR code image removed: {qr_img_path}")
 
-# مسار استقبال الطلب النصي
+# API: استقبال الطلب
 @app.route('/send-order', methods=['POST'])
 def send_order():
     try:
@@ -248,8 +240,10 @@ def send_order():
         total_price = sum(item['price'] * item['quantity'] for item in order_details['items'].values())
         text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
         
+        # إرسال الرسالة
         send_telegram_message(text_message)
         
+        # إنشاء وإرسال PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
             send_telegram_document(
@@ -263,7 +257,7 @@ def send_order():
         print(f"Error processing order: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# مسار إرسال الصورة
+# API: إرسال صورة
 @app.route('/send-photo', methods=['POST'])
 def send_photo():
     try:
@@ -275,10 +269,7 @@ def send_photo():
         
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         files = {'photo': photo_file}
-        payload = {
-            'chat_id': CHAT_ID,
-            'caption': caption
-        }
+        payload = {'chat_id': CHAT_ID, 'caption': caption}
         response = requests.post(url, data=payload, files=files)
         print(f"Telegram API response (photo): {response.json()}")
 
@@ -290,4 +281,3 @@ def send_photo():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
-
