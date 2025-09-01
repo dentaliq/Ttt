@@ -16,6 +16,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER
 
+# استيراد المكتبات الجديدة
+import arabic_reshaper
+from bidi.algorithm import get_display
+
 # إعداد تطبيق Flask
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +41,12 @@ except Exception as e:
     print(f"Error loading Arabic font: {e}. Using Helvetica as fallback.")
     ARABIC_FONT = 'Helvetica'
     ARABIC_FONT_BOLD = 'Helvetica-Bold'
+
+# دالة مساعدة لمعالجة النصوص العربية
+def process_arabic_text(text):
+    reshaped_text = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped_text)
+    return bidi_text
 
 # دالة لحساب المسافة بين نقطتين جغرافيتين
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -122,22 +132,22 @@ def create_order_pdf(order_details, filename="order.pdf"):
             fontSize=12
         )
 
-        story.append(Paragraph("سوبر ماركت العراق", title_style))
+        story.append(Paragraph(process_arabic_text("سوبر ماركت العراق"), title_style))
         story.append(Spacer(1, 0.2 * inch))
 
-        story.append(Paragraph(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}", normal_style))
+        story.append(Paragraph(process_arabic_text(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), normal_style))
         story.append(Spacer(1, 0.3 * inch))
 
-        story.append(Paragraph(f"الاسم: {order_details['customer']['name']}", bold_style))
-        story.append(Paragraph(f"الهاتف: {order_details['customer']['phone']}", bold_style))
+        story.append(Paragraph(process_arabic_text(f"الاسم: {order_details['customer']['name']}"), bold_style))
+        story.append(Paragraph(process_arabic_text(f"الهاتف: {order_details['customer']['phone']}"), bold_style))
         story.append(Spacer(1, 0.3 * inch))
 
         table_data = [
             [
-                Paragraph("<b>المنتج</b>", bold_style),
-                Paragraph("<b>الكمية</b>", bold_style),
-                Paragraph("<b>السعر</b>", bold_style),
-                Paragraph("<b>الإجمالي</b>", bold_style),
+                Paragraph(process_arabic_text("<b>المنتج</b>"), bold_style),
+                Paragraph(process_arabic_text("<b>الكمية</b>"), bold_style),
+                Paragraph(process_arabic_text("<b>السعر</b>"), bold_style),
+                Paragraph(process_arabic_text("<b>الإجمالي</b>"), bold_style),
             ]
         ]
 
@@ -146,10 +156,10 @@ def create_order_pdf(order_details, filename="order.pdf"):
             item_total = item_data['price'] * item_data['quantity']
             total_price_num += item_total
             table_data.append([
-                Paragraph(item_name, normal_style),
-                Paragraph(str(item_data['quantity']), normal_style),
-                Paragraph(f"{item_data['price']:,.0f} د.ع", normal_style),
-                Paragraph(f"{item_total:,.0f} د.ع", normal_style)
+                Paragraph(process_arabic_text(item_name), normal_style),
+                Paragraph(process_arabic_text(str(item_data['quantity'])), normal_style),
+                Paragraph(process_arabic_text(f"{item_data['price']:,.0f} د.ع"), normal_style),
+                Paragraph(process_arabic_text(f"{item_total:,.0f} د.ع"), normal_style)
             ])
 
         table_style = TableStyle([
@@ -178,7 +188,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             spaceBefore=20,
             fontSize=14
         )
-        story.append(Paragraph(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع", total_style))
+        story.append(Paragraph(process_arabic_text(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع"), total_style))
         story.append(Spacer(1, 0.5 * inch))
         
         qr_img_path = None
@@ -190,7 +200,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
             
-            story.append(Paragraph("امسح الباركود للوصول إلى موقع العميل:", normal_style))
+            story.append(Paragraph(process_arabic_text("امسح الباركود للوصول إلى موقع العميل:"), normal_style))
             story.append(Spacer(1, 0.2 * inch))
             
             img = Image(qr_img_path)
@@ -217,7 +227,6 @@ def send_order():
     try:
         order_details = request.get_json()
         
-        # إنشاء رسالة نصية للتيليجرام
         text_message = f"<b>✅ طلب جديد من السوبر ماركت:</b>\n\n"
         text_message += f"<b>- الاسم:</b> {order_details['customer']['name']}\n"
         text_message += f"<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
@@ -239,10 +248,8 @@ def send_order():
         total_price = sum(item['price'] * item['quantity'] for item in order_details['items'].values())
         text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
         
-        # إرسال الرسالة النصية
         send_telegram_message(text_message)
         
-        # إنشاء وإرسال ملف PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
             send_telegram_document(
