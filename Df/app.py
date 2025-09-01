@@ -21,8 +21,8 @@ app = Flask(__name__)
 CORS(app)
 
 # بيانات بوت تيليجرام
-BOT_TOKEN = '8214786867:AAHsLBghSsF2le7Tx_rsLQd6GaXFWVgs_GA'  # استبدل بقيمة حقيقية
-CHAT_ID = '7836619198'      # استبدل بقيمة حقيقية
+BOT_TOKEN = '8214786867:AAHsLBghSsF2le7Tx_rsLQd6GaXFWVgs_GA'
+CHAT_ID = '7836619198'
 
 # موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
@@ -40,7 +40,7 @@ except Exception as e:
 
 # دالة لحساب المسافة بين نقطتين جغرافيتين
 def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371e3  # نصف قطر الأرض بالأمتار
+    R = 6371e3
     φ1 = math.radians(lat1)
     φ2 = math.radians(lat2)
     Δφ = math.radians(lat2 - lat1)
@@ -65,6 +65,10 @@ def send_telegram_message(text, chat_id=CHAT_ID):
 
 # دالة لإرسال ملف PDF إلى تيليجرام
 def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
+    print(f"Attempting to send document from path: {file_path}")
+    if not os.path.exists(file_path):
+        print(f"Error: File not found at path: {file_path}")
+        return None
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
     try:
         with open(file_path, 'rb') as f:
@@ -81,15 +85,16 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
+            print(f"PDF file removed: {file_path}")
 
 # دالة لإنشاء فاتورة PDF
 def create_order_pdf(order_details, filename="order.pdf"):
+    print(f"Attempting to create PDF: {filename}")
     try:
         doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
         story = []
         styles = getSampleStyleSheet()
 
-        # إنشاء أنماط نصية مخصصة للغة العربية
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Title'],
@@ -117,20 +122,16 @@ def create_order_pdf(order_details, filename="order.pdf"):
             fontSize=12
         )
 
-        # إضافة عنوان الفاتورة
         story.append(Paragraph("سوبر ماركت العراق", title_style))
         story.append(Spacer(1, 0.2 * inch))
 
-        # إضافة تاريخ الطلب
         story.append(Paragraph(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}", normal_style))
         story.append(Spacer(1, 0.3 * inch))
 
-        # إضافة معلومات العميل
         story.append(Paragraph(f"الاسم: {order_details['customer']['name']}", bold_style))
         story.append(Paragraph(f"الهاتف: {order_details['customer']['phone']}", bold_style))
         story.append(Spacer(1, 0.3 * inch))
 
-        # إنشاء جدول المنتجات
         table_data = [
             [
                 Paragraph("<b>المنتج</b>", bold_style),
@@ -151,7 +152,6 @@ def create_order_pdf(order_details, filename="order.pdf"):
                 Paragraph(f"{item_total:,.0f} د.ع", normal_style)
             ])
 
-        # تصميم الجدول
         table_style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1c212c')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -170,7 +170,6 @@ def create_order_pdf(order_details, filename="order.pdf"):
         story.append(order_table)
         story.append(Spacer(1, 0.3 * inch))
 
-        # إضافة المجموع الإجمالي
         total_style = ParagraphStyle(
             'TotalStyle',
             parent=styles['Heading2'],
@@ -182,7 +181,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         story.append(Paragraph(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع", total_style))
         story.append(Spacer(1, 0.5 * inch))
         
-        # إضافة QR code للموقع إذا كان متوفراً
+        qr_img_path = None
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
@@ -200,17 +199,17 @@ def create_order_pdf(order_details, filename="order.pdf"):
             img.hAlign = 'CENTER'
             story.append(img)
             
-            # حذف صورة QR بعد استخدامها
-            if os.path.exists(qr_img_path):
-                os.remove(qr_img_path)
-        
-        # بناء ملف PDF
         doc.build(story)
+        print(f"PDF created successfully: {filename}")
         return filename
         
     except Exception as e:
         print(f"Error creating PDF: {e}")
         return None
+    finally:
+        if qr_img_path and os.path.exists(qr_img_path):
+            os.remove(qr_img_path)
+            print(f"QR code image removed: {qr_img_path}")
 
 # مسار استقبال الطلب النصي
 @app.route('/send-order', methods=['POST'])
@@ -284,3 +283,4 @@ def send_photo():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
+
