@@ -3,6 +3,7 @@ import requests
 import json
 import math
 import qrcode
+from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
@@ -12,29 +13,35 @@ from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from flask import Flask, request, jsonify
+from flask_cors import CORS # مكتبة CORS لحل مشاكل الاتصال
 
-# Flask App setup
+# إعداد تطبيق Flask
 app = Flask(__name__)
+CORS(app) # تفعيل CORS للسماح بالطلبات من أي مكان
 
-# Telegram Bot API credentials
-BOT_TOKEN = '8256210377:AAH7ogEPTvIUo9hyY2p8uCkF-Yby13weXkk'
+# بيانات بوت تيليجرام
+# يجب استبدال هذه القيم بقيمك الحقيقية
+BOT_TOKEN = '8214786867:AAHsLBghSsF2le7Tx_rsLQd6GaXFWVgs_GA'
 CHAT_ID = '7836619198'
 
-# Market location for distance calculation
+# موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
-# Register a font that supports Arabic script
+# تسجيل خطوط عربية لإنشاء ملف PDF
 try:
     pdfmetrics.registerFont(TTFont('Tajawal', 'Tajawal-Regular.ttf'))
     pdfmetrics.registerFont(TTFont('Tajawal-Bold', 'Tajawal-Bold.ttf'))
+    ARABIC_FONT = 'Tajawal'
+    ARABIC_FONT_BOLD = 'Tajawal-Bold'
 except Exception as e:
-    print(f"Error loading Arabic font: {e}. Please ensure 'Tajawal-Regular.ttf' and 'Tajawal-Bold.ttf' are in the same directory.")
-    # Fallback font
-    pdfmetrics.registerFont(TTFont('Arabic', 'arial.ttf'))
-    pdfmetrics.registerFont(TTFont('Arabic-Bold', 'arialbd.ttf'))
+    print(f"Error loading Arabic font: {e}. Please ensure font files are present.")
+    ARABIC_FONT = 'Helvetica'
+    ARABIC_FONT_BOLD = 'Helvetica-Bold'
 
+
+# دالة لحساب المسافة بين نقطتين جغرافيتين
 def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371e3  # metres
+    R = 6371e3  # نصف قطر الأرض بالأمتار
     φ1 = math.radians(lat1)
     φ2 = math.radians(lat2)
     Δφ = math.radians(lat2 - lat1)
@@ -45,6 +52,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
     return R * c
 
+# دالة لإرسال رسالة نصية إلى تيليجرام
 def send_telegram_message(text, chat_id=CHAT_ID):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
@@ -52,52 +60,53 @@ def send_telegram_message(text, chat_id=CHAT_ID):
         'text': text,
         'parse_mode': 'HTML'
     }
-    return requests.post(url, json=payload)
+    response = requests.post(url, json=payload)
+    print(f"Telegram API response (message): {response.json()}")
+    return response
 
+# دالة لإرسال ملف PDF إلى تيليجرام
 def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-    files = {
-        'document': open(file_path, 'rb')
-    }
-    payload = {
-        'chat_id': chat_id,
-        'caption': caption
-    }
-    return requests.post(url, data=payload, files=files)
+    with open(file_path, 'rb') as f:
+        files = {'document': f}
+        payload = {
+            'chat_id': chat_id,
+            'caption': caption
+        }
+        response = requests.post(url, data=payload, files=files)
+        print(f"Telegram API response (document): {response.json()}")
+        return response
 
+# دالة لإنشاء فاتورة PDF
 def create_order_pdf(order_details, filename="order.pdf"):
     try:
         doc = SimpleDocTemplate(filename, pagesize=letter)
         story = []
         styles = getSampleStyleSheet()
-        
-        # Check if Arabic font is registered
-        font_name = 'Tajawal' if 'Tajawal' in pdfmetrics.getFontNames() else 'Arabic'
-        font_name_bold = 'Tajawal-Bold' if 'Tajawal-Bold' in pdfmetrics.getFontNames() else 'Arabic-Bold'
 
-        # Title
+        # العنوان
         title_style = styles['Title']
-        title_style.fontName = font_name_bold
-        title_style.alignment = 1 # Center
+        title_style.fontName = ARABIC_FONT_BOLD
+        title_style.alignment = 1
         story.append(Paragraph("سوبر ماركت العراق", title_style))
         story.append(Spacer(1, 0.2 * inch))
 
-        # Date
+        # التاريخ
         date_style = styles['Normal']
-        date_style.fontName = font_name
+        date_style.fontName = ARABIC_FONT
         date_style.alignment = 1
-        story.append(Paragraph("تاريخ الطلب: 1-9-2025", date_style)) # Static date for now
+        story.append(Paragraph(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}", date_style))
         story.append(Spacer(1, 0.5 * inch))
 
-        # Customer Info
+        # معلومات العميل
         info_style = styles['Normal']
-        info_style.fontName = font_name
-        info_style.alignment = 2 # Right
+        info_style.fontName = ARABIC_FONT
+        info_style.alignment = 2
         story.append(Paragraph(f"الاسم: {order_details['customer']['name']}", info_style))
         story.append(Paragraph(f"الهاتف: {order_details['customer']['phone']}", info_style))
         story.append(Spacer(1, 0.2 * inch))
 
-        # Order table
+        # جدول الطلبات
         table_data = [
             [
                 Paragraph("<b>الإجمالي</b>", styles['Normal']),
@@ -108,7 +117,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         ]
         
         table_style = styles['Normal']
-        table_style.fontName = font_name
+        table_style.fontName = ARABIC_FONT
         
         total_price_num = 0
         for item_name, item_data in order_details['items'].items():
@@ -121,32 +130,32 @@ def create_order_pdf(order_details, filename="order.pdf"):
                 Paragraph(item_name, table_style)
             ])
 
-        table_style = TableStyle([
+        pdf_table_style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1c212c')),
             ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#bdc3c7')),
             ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#bdc3c7')),
-            ('FONTNAME', (0, 0), (-1, -1), font_name),
-            ('FONTNAME', (0, 0), (-1, 0), font_name_bold),
+            ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
+            ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ])
 
         order_table = Table(table_data, colWidths=[2*inch, 1.5*inch, 1*inch, 2*inch])
-        order_table.setStyle(table_style)
+        order_table.setStyle(pdf_table_style)
         story.append(order_table)
         story.append(Spacer(1, 0.2 * inch))
 
-        # Total Price
+        # المجموع الإجمالي
         total_style = styles['Heading2']
-        total_style.fontName = font_name_bold
-        total_style.alignment = 0 # Left
+        total_style.fontName = ARABIC_FONT_BOLD
+        total_style.alignment = 0
         story.append(Paragraph(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع", total_style))
         story.append(Spacer(1, 0.5 * inch))
         
-        # QR Code for location
+        # الباركود
         if order_details['customer']['location']:
-            qr_data = f"https://www.google.com/maps/place/{order_details['customer']['location']['lat']},{order_details['customer']['location']['lng']}"
+            qr_data = f"https://maps.google.com/?q={order_details['customer']['location']['lat']},{order_details['customer']['location']['lng']}"
             qr_img = qrcode.make(qr_data)
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
@@ -168,36 +177,36 @@ def create_order_pdf(order_details, filename="order.pdf"):
         print(f"Error creating PDF: {e}")
         return None
 
+# مسار استقبال الطلب النصي
 @app.route('/send-order', methods=['POST'])
 def send_order():
     try:
         order_details = request.get_json()
         
-        # Send text message to Telegram
-        text_message = f"✅ طلب جديد من السوبر ماركت:\n\n"
-        text_message += f"الاسم: {order_details['customer']['name']}\n"
-        text_message += f"الهاتف: {order_details['customer']['phone']}\n"
+        # إرسال الرسالة النصية إلى تيليجرام
+        text_message = f"<b>✅ طلب جديد من السوبر ماركت:</b>\n\n"
+        text_message += f"<b>- الاسم:</b> {order_details['customer']['name']}\n"
+        text_message += f"<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
         
         if 'location' in order_details['customer'] and order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"الإحداثيات: {lat}, {lng}\n"
-            text_message += f"المسافة عن المتجر: {distance:,.2f} متر\n"
-            text_message += f"الموقع الجغرافي: https://www.google.com/maps/place/{lat},{lng}\n"
+            text_message += f"<b>- الإحداثيات:</b> <a href='https://maps.google.com/?q={lat},{lng}'>الموقع الجغرافي</a>\n"
+            text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
         else:
-            text_message += f"ملاحظة: لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
+            text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
         
-        text_message += f"\nالمنتجات:\n"
+        text_message += f"\n<b><u>المنتجات:</u></b>\n"
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
             text_message += f"• {item_name} (الكمية: {item_data['quantity']}) - السعر: {item_total:,.0f} د.ع\n"
         
-        text_message += f"\nالمجموع الإجمالي: {order_details['total']}"
+        text_message += f"\n<b><u>{order_details['total']}</u></b>"
         
         send_telegram_message(text_message)
         
-        # Create and send PDF
+        # إنشاء وإرسال ملف PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
             send_telegram_document(pdf_file, caption=f"فاتورة طلب السيد {order_details['customer']['name']}")
@@ -209,5 +218,27 @@ def send_order():
         print(f"Error processing order: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# مسار استقبال الصورة
+@app.route('/send-photo', methods=['POST'])
+def send_photo():
+    try:
+        photo_file = request.files['photo']
+        caption = request.form.get('caption', '')
+        
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+        files = {'photo': photo_file}
+        payload = {
+            'chat_id': CHAT_ID,
+            'caption': caption
+        }
+        response = requests.post(url, data=payload, files=files)
+        print(f"Telegram API response (photo): {response.json()}")
+
+        return jsonify({'status': 'success', 'message': 'Photo sent successfully.'})
+
+    except Exception as e:
+        print(f"Error sending photo to Telegram: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000))
