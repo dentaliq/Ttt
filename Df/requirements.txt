@@ -1,6 +1,7 @@
 Flask
+Flask-CORS
+gunicorn
 python-telegram-bot
 reportlab
 qrcode
-gunicorn
 requests
