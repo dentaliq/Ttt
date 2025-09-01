@@ -13,7 +13,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 
 # دعم العربية
 import arabic_reshaper
@@ -32,10 +32,10 @@ MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
 # تسجيل خطوط عربية
 try:
-    pdfmetrics.registerFont(TTFont('Tajawal', 'Tajawal-Regular.ttf'))
-    pdfmetrics.registerFont(TTFont('Tajawal-Bold', 'Tajawal-Bold.ttf'))
-    ARABIC_FONT = '2.ttf'
-    ARABIC_FONT_BOLD = '1.ttf'
+    pdfmetrics.registerFont(TTFont('Cairo', 'Cairo-Regular.ttf'))
+    pdfmetrics.registerFont(TTFont('Cairo-Bold', 'Cairo-Bold.ttf'))
+    ARABIC_FONT = 'Cairo'
+    ARABIC_FONT_BOLD = 'Cairo-Bold'
 except Exception as e:
     print(f"Error loading Arabic font: {e}. Using Helvetica as fallback.")
     ARABIC_FONT = 'Helvetica'
@@ -45,8 +45,8 @@ except Exception as e:
 def rtl(text):
     if not text:
         return ""
-    reshaped_text = arabic_reshaper.reshape(text)   # توصيل الحروف
-    bidi_text = get_display(reshaped_text)          # عكس الاتجاه RTL
+    reshaped_text = arabic_reshaper.reshape(text)
+    bidi_text = get_display(reshaped_text)
     return bidi_text
 
 # دالة لحساب المسافة
@@ -97,92 +97,119 @@ def create_order_pdf(order_details, filename="order.pdf"):
         story = []
         styles = getSampleStyleSheet()
 
+        # Styles for different text elements
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Title'],
             fontName=ARABIC_FONT_BOLD,
             alignment=TA_CENTER,
-            spaceAfter=30,
-            fontSize=18
+            spaceAfter=15,
+            fontSize=22,
+            textColor=colors.HexColor('#0d47a1')
         )
-
+        subtitle_style = ParagraphStyle(
+            'CustomSubtitle',
+            parent=styles['Normal'],
+            fontName=ARABIC_FONT,
+            alignment=TA_CENTER,
+            spaceAfter=25,
+            fontSize=14,
+            textColor=colors.HexColor('#455a64')
+        )
+        header_style = ParagraphStyle(
+            'CustomHeader',
+            parent=styles['Normal'],
+            fontName=ARABIC_FONT_BOLD,
+            alignment=TA_RIGHT,
+            spaceAfter=8,
+            fontSize=13
+        )
         normal_style = ParagraphStyle(
             'CustomNormal',
             parent=styles['Normal'],
             fontName=ARABIC_FONT,
             alignment=TA_RIGHT,
-            spaceAfter=12,
-            fontSize=12
+            spaceAfter=4,
+            fontSize=11,
+            textColor=colors.HexColor('#212121')
         )
-
-        bold_style = ParagraphStyle(
-            'CustomBold',
-            parent=styles['Normal'],
+        total_style = ParagraphStyle(
+            'TotalStyle',
+            parent=styles['Heading2'],
             fontName=ARABIC_FONT_BOLD,
-            alignment=TA_RIGHT,
-            spaceAfter=12,
-            fontSize=12
+            alignment=TA_CENTER,
+            spaceBefore=15,
+            fontSize=18,
+            textColor=colors.HexColor('#0d47a1')
         )
 
-        story.append(Paragraph(rtl("سوبر ماركت العراق"), title_style))
+        # Header and company info
+        story.append(Paragraph(rtl("فاتورة طلب"), title_style))
+        story.append(Paragraph(rtl("سوبر ماركت العراق"), subtitle_style))
+        
+        # Customer and order details
+        story.append(Paragraph(rtl("تفاصيل العميل"), header_style))
+        story.append(Paragraph(rtl(f"الاسم: {order_details['customer']['name']}"), normal_style))
+        story.append(Paragraph(rtl(f"الهاتف: {order_details['customer']['phone']}"), normal_style))
         story.append(Spacer(1, 0.2 * inch))
-
         story.append(Paragraph(rtl(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), normal_style))
         story.append(Spacer(1, 0.3 * inch))
 
-        story.append(Paragraph(rtl(f"الاسم: {order_details['customer']['name']}"), bold_style))
-        story.append(Paragraph(rtl(f"الهاتف: {order_details['customer']['phone']}"), bold_style))
-        story.append(Spacer(1, 0.3 * inch))
-
+        # Order table
         table_data = [
             [
-                Paragraph(rtl("المنتج"), bold_style),
-                Paragraph(rtl("الكمية"), bold_style),
-                Paragraph(rtl("السعر"), bold_style),
-                Paragraph(rtl("الإجمالي"), bold_style),
+                Paragraph(rtl("الإجمالي"), header_style),
+                Paragraph(rtl("السعر"), header_style),
+                Paragraph(rtl("الكمية"), header_style),
+                Paragraph(rtl("المنتج"), header_style),
             ]
         ]
-
+        
         total_price_num = 0
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
             total_price_num += item_total
             table_data.append([
-                Paragraph(rtl(item_name), normal_style),
-                Paragraph(rtl(str(item_data['quantity'])), normal_style),
+                Paragraph(rtl(f"{item_total:,.0f} د.ع"), normal_style),
                 Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), normal_style),
-                Paragraph(rtl(f"{item_total:,.0f} د.ع"), normal_style)
+                Paragraph(rtl(str(item_data['quantity'])), normal_style),
+                Paragraph(rtl(item_name), normal_style)
             ])
 
         table_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1c212c')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d47a1')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#e3f2fd')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#b0bec5')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#b0bec5')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ])
 
-        order_table = Table(table_data, colWidths=[2.5*inch, 1*inch, 1.5*inch, 1.5*inch])
+        order_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 2.5*inch])
         order_table.setStyle(table_style)
         story.append(order_table)
         story.append(Spacer(1, 0.3 * inch))
 
-        total_style = ParagraphStyle(
-            'TotalStyle',
-            parent=styles['Heading2'],
-            fontName=ARABIC_FONT_BOLD,
-            alignment=TA_RIGHT,
-            spaceBefore=20,
-            fontSize=14
-        )
-        story.append(Paragraph(rtl(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع"), total_style))
+        # Total price section
+        total_frame_data = [[Paragraph(rtl(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع"), total_style)]]
+        total_table = Table(total_frame_data, colWidths=[7.5*inch])
+        total_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f5f5f5')),
+            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#0d47a1')),
+            ('ROUNDEDCORNERS', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10)
+        ]))
+        story.append(total_table)
         story.append(Spacer(1, 0.5 * inch))
 
+        # QR Code for location
         qr_img_path = None
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
