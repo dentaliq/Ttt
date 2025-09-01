@@ -7,23 +7,22 @@ from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER
 
 # إعداد تطبيق Flask
 app = Flask(__name__)
 CORS(app)
 
 # بيانات بوت تيليجرام
-# يجب استبدال هذه القيم بقيمك الحقيقية
-BOT_TOKEN = 'YOUR_BOT_TOKEN'
-CHAT_ID = 'YOUR_CHAT_ID'
+BOT_TOKEN = 'YOUR_BOT_TOKEN'  # استبدل بقيمة حقيقية
+CHAT_ID = 'YOUR_CHAT_ID'      # استبدل بقيمة حقيقية
 
 # موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
@@ -35,10 +34,9 @@ try:
     ARABIC_FONT = 'Tajawal'
     ARABIC_FONT_BOLD = 'Tajawal-Bold'
 except Exception as e:
-    print(f"Error loading Arabic font: {e}. Please ensure font files are present.")
+    print(f"Error loading Arabic font: {e}. Using Helvetica as fallback.")
     ARABIC_FONT = 'Helvetica'
     ARABIC_FONT_BOLD = 'Helvetica-Bold'
-
 
 # دالة لحساب المسافة بين نقطتين جغرافيتين
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -87,88 +85,113 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
 # دالة لإنشاء فاتورة PDF
 def create_order_pdf(order_details, filename="order.pdf"):
     try:
-        doc = SimpleDocTemplate(filename, pagesize=letter)
+        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
         story = []
         styles = getSampleStyleSheet()
 
-        # العنوان
-        title_style = styles['Title']
-        title_style.fontName = ARABIC_FONT_BOLD
-        title_style.alignment = 1
+        # إنشاء أنماط نصية مخصصة للغة العربية
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Title'],
+            fontName=ARABIC_FONT_BOLD,
+            alignment=TA_CENTER,
+            spaceAfter=30,
+            fontSize=18
+        )
+        
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontName=ARABIC_FONT,
+            alignment=TA_RIGHT,
+            spaceAfter=12,
+            fontSize=12
+        )
+        
+        bold_style = ParagraphStyle(
+            'CustomBold',
+            parent=styles['Normal'],
+            fontName=ARABIC_FONT_BOLD,
+            alignment=TA_RIGHT,
+            spaceAfter=12,
+            fontSize=12
+        )
+
+        # إضافة عنوان الفاتورة
         story.append(Paragraph("سوبر ماركت العراق", title_style))
         story.append(Spacer(1, 0.2 * inch))
 
-        # التاريخ
-        date_style = styles['Normal']
-        date_style.fontName = ARABIC_FONT
-        date_style.alignment = 1
-        story.append(Paragraph(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}", date_style))
-        story.append(Spacer(1, 0.5 * inch))
+        # إضافة تاريخ الطلب
+        story.append(Paragraph(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}", normal_style))
+        story.append(Spacer(1, 0.3 * inch))
 
-        # معلومات العميل
-        info_style = styles['Normal']
-        info_style.fontName = ARABIC_FONT
-        info_style.alignment = 2
-        story.append(Paragraph(f"الاسم: {order_details['customer']['name']}", info_style))
-        story.append(Paragraph(f"الهاتف: {order_details['customer']['phone']}", info_style))
-        story.append(Spacer(1, 0.2 * inch))
+        # إضافة معلومات العميل
+        story.append(Paragraph(f"الاسم: {order_details['customer']['name']}", bold_style))
+        story.append(Paragraph(f"الهاتف: {order_details['customer']['phone']}", bold_style))
+        story.append(Spacer(1, 0.3 * inch))
 
-        # جدول الطلبات
+        # إنشاء جدول المنتجات
         table_data = [
             [
-                Paragraph("<b>المنتج</b>", styles['Normal']),
-                Paragraph("<b>الكمية</b>", styles['Normal']),
-                Paragraph("<b>السعر</b>", styles['Normal']),
-                Paragraph("<b>الإجمالي</b>", styles['Normal']),
+                Paragraph("<b>المنتج</b>", bold_style),
+                Paragraph("<b>الكمية</b>", bold_style),
+                Paragraph("<b>السعر</b>", bold_style),
+                Paragraph("<b>الإجمالي</b>", bold_style),
             ]
         ]
-        
-        table_style = styles['Normal']
-        table_style.fontName = ARABIC_FONT
-        table_style.alignment = TA_RIGHT
 
         total_price_num = 0
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
             total_price_num += item_total
             table_data.append([
-                Paragraph(item_name, table_style),
-                Paragraph(str(item_data['quantity']), table_style),
-                Paragraph(f"{item_data['price']:,.0f} د.ع", table_style),
-                Paragraph(f"{item_total:,.0f} د.ع", table_style)
+                Paragraph(item_name, normal_style),
+                Paragraph(str(item_data['quantity']), normal_style),
+                Paragraph(f"{item_data['price']:,.0f} د.ع", normal_style),
+                Paragraph(f"{item_total:,.0f} د.ع", normal_style)
             ])
 
-        pdf_table_style = TableStyle([
+        # تصميم الجدول
+        table_style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1c212c')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#bdc3c7')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#bdc3c7')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('RIGHTPADDING', (0,0), (-1,-1), 12),
-            ('LEFTPADDING', (0,0), (-1,-1), 12),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
         ])
 
         order_table = Table(table_data, colWidths=[2.5*inch, 1*inch, 1.5*inch, 1.5*inch])
-        order_table.setStyle(pdf_table_style)
+        order_table.setStyle(table_style)
         story.append(order_table)
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.3 * inch))
 
-        total_style = styles['Heading2']
-        total_style.fontName = ARABIC_FONT_BOLD
-        total_style.alignment = 0
+        # إضافة المجموع الإجمالي
+        total_style = ParagraphStyle(
+            'TotalStyle',
+            parent=styles['Heading2'],
+            fontName=ARABIC_FONT_BOLD,
+            alignment=TA_RIGHT,
+            spaceBefore=20,
+            fontSize=14
+        )
         story.append(Paragraph(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع", total_style))
         story.append(Spacer(1, 0.5 * inch))
         
+        # إضافة QR code للموقع إذا كان متوفراً
         if order_details['customer']['location']:
-            qr_data = f"https://www.google.com/maps/place/{order_details['customer']['location']['lat']},{order_details['customer']['location']['lng']}"
+            lat = order_details['customer']['location']['lat']
+            lng = order_details['customer']['location']['lng']
+            qr_data = f"https://www.google.com/maps/place/{lat},{lng}"
             qr_img = qrcode.make(qr_data)
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
             
-            story.append(Paragraph("امسح الباركود للوصول إلى موقع العميل:", info_style))
+            story.append(Paragraph("امسح الباركود للوصول إلى موقع العميل:", normal_style))
             story.append(Spacer(1, 0.2 * inch))
             
             img = Image(qr_img_path)
@@ -176,8 +199,12 @@ def create_order_pdf(order_details, filename="order.pdf"):
             img.drawWidth = 2*inch
             img.hAlign = 'CENTER'
             story.append(img)
-            os.remove(qr_img_path)
             
+            # حذف صورة QR بعد استخدامها
+            if os.path.exists(qr_img_path):
+                os.remove(qr_img_path)
+        
+        # بناء ملف PDF
         doc.build(story)
         return filename
         
@@ -191,7 +218,7 @@ def send_order():
     try:
         order_details = request.get_json()
         
-        # إرسال الرسالة النصية إلى تيليجرام
+        # إنشاء رسالة نصية للتيليجرام
         text_message = f"<b>✅ طلب جديد من السوبر ماركت:</b>\n\n"
         text_message += f"<b>- الاسم:</b> {order_details['customer']['name']}\n"
         text_message += f"<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
@@ -210,13 +237,19 @@ def send_order():
             item_total = item_data['price'] * item_data['quantity']
             text_message += f"• {item_name} (الكمية: {item_data['quantity']}) - السعر: {item_total:,.0f} د.ع\n"
         
-        text_message += f"\n<b><u>{order_details['total']}</u></b>"
+        total_price = sum(item['price'] * item['quantity'] for item in order_details['items'].values())
+        text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
         
+        # إرسال الرسالة النصية
         send_telegram_message(text_message)
         
+        # إنشاء وإرسال ملف PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
-            send_telegram_document(pdf_file, caption=f"فاتورة طلب السيد {order_details['customer']['name']}")
+            send_telegram_document(
+                pdf_file, 
+                caption=f"فاتورة طلب السيد {order_details['customer']['name']} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
         
         return jsonify({'status': 'success', 'message': 'Order and PDF sent to Telegram successfully.'})
 
@@ -224,6 +257,7 @@ def send_order():
         print(f"Error processing order: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# مسار إرسال الصورة
 @app.route('/send-photo', methods=['POST'])
 def send_photo():
     try:
