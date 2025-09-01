@@ -17,8 +17,8 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 # Telegram Bot API credentials
-BOT_TOKEN = 'YOUR_BOT_TOKEN'
-CHAT_ID = 'YOUR_CHAT_ID'
+BOT_TOKEN = '8256210377:AAH7ogEPTvIUo9hyY2p8uCkF-Yby13weXkk'
+CHAT_ID = '7836619198'
 
 # Market location for distance calculation
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
