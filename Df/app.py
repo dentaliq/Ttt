@@ -97,23 +97,23 @@ def create_order_pdf(order_details, filename="order.pdf"):
         story = []
         styles = getSampleStyleSheet()
 
-        # Styles for different text elements
+        # تعريف أنماط الفقرات المخصصة للنص العربي
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Title'],
             fontName=ARABIC_FONT_BOLD,
-            alignment=TA_CENTER,
+            alignment=TA_RIGHT,
             spaceAfter=15,
-            fontSize=22,
+            fontSize=28,
             textColor=colors.HexColor('#0d47a1')
         )
         subtitle_style = ParagraphStyle(
             'CustomSubtitle',
             parent=styles['Normal'],
             fontName=ARABIC_FONT,
-            alignment=TA_CENTER,
-            spaceAfter=25,
-            fontSize=14,
+            alignment=TA_RIGHT,
+            spaceAfter=5,
+            fontSize=16,
             textColor=colors.HexColor('#455a64')
         )
         header_style = ParagraphStyle(
@@ -122,7 +122,8 @@ def create_order_pdf(order_details, filename="order.pdf"):
             fontName=ARABIC_FONT_BOLD,
             alignment=TA_RIGHT,
             spaceAfter=8,
-            fontSize=13
+            fontSize=14,
+            textColor=colors.HexColor('#263238')
         )
         normal_style = ParagraphStyle(
             'CustomNormal',
@@ -130,40 +131,81 @@ def create_order_pdf(order_details, filename="order.pdf"):
             fontName=ARABIC_FONT,
             alignment=TA_RIGHT,
             spaceAfter=4,
-            fontSize=11,
-            textColor=colors.HexColor('#212121')
+            fontSize=12,
+            textColor=colors.HexColor('#424242')
         )
         total_style = ParagraphStyle(
             'TotalStyle',
             parent=styles['Heading2'],
             fontName=ARABIC_FONT_BOLD,
-            alignment=TA_CENTER,
+            alignment=TA_RIGHT,
             spaceBefore=15,
-            fontSize=18,
+            fontSize=20,
+            textColor=colors.HexColor('#0d47a1')
+        )
+        qr_text_style = ParagraphStyle(
+            'QRTextStyle',
+            parent=styles['Normal'],
+            fontName=ARABIC_FONT_BOLD,
+            alignment=TA_CENTER,
+            spaceAfter=10,
+            fontSize=14,
             textColor=colors.HexColor('#0d47a1')
         )
 
-        # Header and company info
-        story.append(Paragraph(rtl("فاتورة طلب"), title_style))
-        story.append(Paragraph(rtl("سوبر ماركت العراق"), subtitle_style))
-        
-        # Customer and order details
-        story.append(Paragraph(rtl("تفاصيل العميل"), header_style))
-        story.append(Paragraph(rtl(f"الاسم: {order_details['customer']['name']}"), normal_style))
-        story.append(Paragraph(rtl(f"الهاتف: {order_details['customer']['phone']}"), normal_style))
+        # --- قسم رأس الفاتورة (احترافي) ---
+        try:
+            logo = Image("logo.png")
+            logo.drawHeight = 0.8 * inch
+            logo.drawWidth = 0.8 * inch
+            logo.hAlign = 'LEFT'
+            
+            header_data = [
+                [logo, Paragraph(rtl("فاتورة طلب"), title_style)],
+                ['', Paragraph(rtl("سوبر ماركت العراق"), subtitle_style)],
+            ]
+            header_table = Table(header_data, colWidths=[1*inch, 6.5*inch])
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('LEFTPADDING', (0,0), (0,0), 0),
+                ('ALIGN', (0,0), (0,0), 'LEFT'),
+                ('ALIGN', (1,0), (1,0), 'RIGHT'),
+                ('LEFTPADDING', (1,0), (1,0), 0)
+            ]))
+            story.append(header_table)
+            story.append(Spacer(1, 0.2 * inch))
+        except Exception as e:
+            print(f"Logo file not found or error loading: {e}. Skipping logo.")
+            story.append(Paragraph(rtl("فاتورة طلب"), title_style))
+            story.append(Paragraph(rtl("سوبر ماركت العراق"), subtitle_style))
+            story.append(Spacer(1, 0.2 * inch))
+
+        story.append(Paragraph('<hr color="#0d47a1"/>', styles['Normal']))
         story.append(Spacer(1, 0.2 * inch))
-        story.append(Paragraph(rtl(f"تاريخ الطلب: {datetime.now().strftime('%Y-%m-%d %H:%M')}"), normal_style))
+
+        # --- قسم تفاصيل العميل والطلب ---
+        story.append(Paragraph(rtl("<b>تفاصيل الطلب:</b>"), header_style))
+        customer_info = [
+            Paragraph(rtl(f"<b>الاسم:</b> {order_details['customer']['name']}"), normal_style),
+            Paragraph(rtl(f"<b>الهاتف:</b> {order_details['customer']['phone']}"), normal_style),
+            Paragraph(rtl(f"<b>تاريخ الطلب:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}"), normal_style)
+        ]
+        
+        for item in customer_info:
+            story.append(item)
+
         story.append(Spacer(1, 0.3 * inch))
 
-        # Order table
-        table_data = [
-            [
-                Paragraph(rtl("الإجمالي"), header_style),
-                Paragraph(rtl("السعر"), header_style),
-                Paragraph(rtl("الكمية"), header_style),
-                Paragraph(rtl("المنتج"), header_style),
-            ]
+        # --- جدول المنتجات ---
+        story.append(Paragraph(rtl("<b>المنتجات المطلوبة:</b>"), header_style))
+        table_header = [
+            Paragraph(rtl("الإجمالي"), header_style),
+            Paragraph(rtl("السعر"), header_style),
+            Paragraph(rtl("الكمية"), header_style),
+            Paragraph(rtl("المنتج"), header_style)
         ]
+        
+        table_data = [table_header]
         
         total_price_num = 0
         for item_name, item_data in order_details['items'].items():
@@ -177,31 +219,33 @@ def create_order_pdf(order_details, filename="order.pdf"):
             ])
 
         table_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d47a1')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e3f2fd')), # رأس الجدول بلون أزرق فاتح
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#0d47a1')), # لون النص في الرأس أزرق غامق
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#e3f2fd')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#b0bec5')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#b0bec5')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f5f5f5')), # لون الخلفية لصفوف البيانات
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#b0bec5')), # خطوط الشبكة
+            ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#b0bec5')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ])
-
-        order_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 2.5*inch])
+        
+        col_widths = [1.5*inch, 1.5*inch, 1*inch, 2.5*inch]
+        order_table = Table(table_data, colWidths=col_widths, repeatRows=1)
         order_table.setStyle(table_style)
         story.append(order_table)
         story.append(Spacer(1, 0.3 * inch))
 
-        # Total price section
-        total_frame_data = [[Paragraph(rtl(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع"), total_style)]]
+        # --- قسم الإجمالي ---
+        total_frame_data = [[Paragraph(rtl(f"<b>المجموع الإجمالي:</b> {total_price_num:,.0f} د.ع"), total_style)]]
         total_table = Table(total_frame_data, colWidths=[7.5*inch])
         total_table.setStyle(TableStyle([
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f5f5f5')),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#0d47a1')),
+            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#e3f2fd')),
+            ('BOX', (0,0), (-1,-1), 1.5, colors.HexColor('#0d47a1')),
             ('ROUNDEDCORNERS', (0,0), (-1,-1), 5),
             ('TOPPADDING', (0,0), (-1,-1), 10),
             ('BOTTOMPADDING', (0,0), (-1,-1), 10)
@@ -209,25 +253,34 @@ def create_order_pdf(order_details, filename="order.pdf"):
         story.append(total_table)
         story.append(Spacer(1, 0.5 * inch))
 
-        # QR Code for location
+        # --- قسم الباركود (موقع العميل) ---
         qr_img_path = None
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
-            qr_data = f"https://www.google.com/maps/place/{lat},{lng}"
+            qr_data = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
+            
             qr_img = qrcode.make(qr_data)
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
 
-            story.append(Paragraph(rtl("امسح الباركود للوصول إلى موقع العميل:"), normal_style))
-            story.append(Spacer(1, 0.2 * inch))
+            story.append(Paragraph(rtl("امسح الباركود للوصول إلى موقع العميل"), qr_text_style))
+            story.append(Spacer(1, 0.1 * inch))
 
-            img = Image(qr_img_path)
-            img.drawHeight = 2*inch
-            img.drawWidth = 2*inch
-            img.hAlign = 'CENTER'
-            story.append(img)
-
+            qr_image = Image(qr_img_path)
+            qr_image.drawHeight = 2.5*inch
+            qr_image.drawWidth = 2.5*inch
+            
+            qr_table_data = [[qr_image]]
+            qr_table = Table(qr_table_data, colWidths=[7.5*inch])
+            qr_table.setStyle(TableStyle([
+                ('ALIGN', (0,0), (0,0), 'CENTER'),
+                ('VALIGN', (0,0), (0,0), 'MIDDLE'),
+                ('BOX', (0,0), (0,0), 2, colors.HexColor('#0d47a1')),
+                ('ROUNDEDCORNERS', (0,0), (0,0), 5)
+            ]))
+            story.append(qr_table)
+        
         doc.build(story)
         print(f"PDF created successfully: {filename}")
         return filename
@@ -239,6 +292,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         if 'qr_img_path' in locals() and qr_img_path and os.path.exists(qr_img_path):
             os.remove(qr_img_path)
             print(f"QR code image removed: {qr_img_path}")
+
 
 # API: استقبال الطلب
 @app.route('/send-order', methods=['POST'])
@@ -254,17 +308,18 @@ def send_order():
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps/place/{lat},{lng}'>الموقع الجغرافي</a>\n"
+            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>الموقع الجغرافي</a>\n"
             text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
         else:
             text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
         
         text_message += f"\n<b><u>المنتجات:</u></b>\n"
+        total_price = 0
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
+            total_price += item_total
             text_message += f"• {item_name} (الكمية: {item_data['quantity']}) - السعر: {item_total:,.0f} د.ع\n"
         
-        total_price = sum(item['price'] * item['quantity'] for item in order_details['items'].values())
         text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
         
         # إرسال الرسالة
