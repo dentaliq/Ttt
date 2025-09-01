@@ -32,11 +32,11 @@ MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
 # تسجيل خطوط عربية
 try:
-    # تأكد من أن ملفات الخطوط 'Cairo-Regular.ttf' و 'Cairo-Bold.ttf' موجودة في نفس مجلد السكربت.
-    pdfmetrics.registerFont(TTFont('Cairo', 'Cairo-Regular.ttf'))
-    pdfmetrics.registerFont(TTFont('Cairo-Bold', 'Cairo-Bold.ttf'))
-    ARABIC_FONT = 'Cairo'
-    ARABIC_FONT_BOLD = 'Cairo-Bold'
+    # تأكد من أن ملفات الخطوط 'Almarai-Regular.ttf' و 'Almarai-Bold.ttf' موجودة في نفس مجلد السكربت.
+    pdfmetrics.registerFont(TTFont('Almarai', 'Almarai-Regular.ttf'))
+    pdfmetrics.registerFont(TTFont('Almarai-Bold', 'Almarai-Bold.ttf'))
+    ARABIC_FONT = 'Almarai'
+    ARABIC_FONT_BOLD = 'Almarai-Bold'
 except Exception as e:
     print(f"خطأ في تحميل الخط العربي: {e}. سيتم استخدام Helvetica كبديل.")
     ARABIC_FONT = 'Helvetica'
