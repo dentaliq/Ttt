@@ -34,8 +34,8 @@ MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 try:
     pdfmetrics.registerFont(TTFont('Tajawal', 'Tajawal-Regular.ttf'))
     pdfmetrics.registerFont(TTFont('Tajawal-Bold', 'Tajawal-Bold.ttf'))
-    ARABIC_FONT = '1.ttf'
-    ARABIC_FONT_BOLD = '2.ttf'
+    ARABIC_FONT = '2.ttf'
+    ARABIC_FONT_BOLD = '1.ttf'
 except Exception as e:
     print(f"Error loading Arabic font: {e}. Using Helvetica as fallback.")
     ARABIC_FONT = 'Helvetica'
