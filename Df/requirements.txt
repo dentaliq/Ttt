@@ -1,7 +1,7 @@
 Flask
-python-telegram-bot
+Flask-Cors
+requests
 reportlab
 qrcode
-requests
-Flask-CORS
-gunicorn
+arabic-reshaper
+python-bidi
