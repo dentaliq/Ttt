@@ -13,16 +13,17 @@ from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from flask import Flask, request, jsonify
-from flask_cors import CORS # مكتبة CORS لحل مشاكل الاتصال
+from flask_cors import CORS
+from reportlab.lib.enums import TA_RIGHT
 
 # إعداد تطبيق Flask
 app = Flask(__name__)
-CORS(app) # تفعيل CORS للسماح بالطلبات من أي مكان
+CORS(app)
 
 # بيانات بوت تيليجرام
 # يجب استبدال هذه القيم بقيمك الحقيقية
-BOT_TOKEN = '8214786867:AAHsLBghSsF2le7Tx_rsLQd6GaXFWVgs_GA'
-CHAT_ID = '7836619198'
+BOT_TOKEN = 'YOUR_BOT_TOKEN'
+CHAT_ID = 'YOUR_CHAT_ID'
 
 # موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
@@ -67,15 +68,21 @@ def send_telegram_message(text, chat_id=CHAT_ID):
 # دالة لإرسال ملف PDF إلى تيليجرام
 def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-    with open(file_path, 'rb') as f:
-        files = {'document': f}
-        payload = {
-            'chat_id': chat_id,
-            'caption': caption
-        }
-        response = requests.post(url, data=payload, files=files)
-        print(f"Telegram API response (document): {response.json()}")
-        return response
+    try:
+        with open(file_path, 'rb') as f:
+            files = {'document': f}
+            payload = {
+                'chat_id': chat_id,
+                'caption': caption
+            }
+            response = requests.post(url, data=payload, files=files)
+            print(f"Telegram API response (document): {response.json()}")
+            return response
+    except Exception as e:
+        print(f"Error sending document to Telegram: {e}")
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 # دالة لإنشاء فاتورة PDF
 def create_order_pdf(order_details, filename="order.pdf"):
@@ -109,25 +116,26 @@ def create_order_pdf(order_details, filename="order.pdf"):
         # جدول الطلبات
         table_data = [
             [
-                Paragraph("<b>الإجمالي</b>", styles['Normal']),
-                Paragraph("<b>السعر</b>", styles['Normal']),
+                Paragraph("<b>المنتج</b>", styles['Normal']),
                 Paragraph("<b>الكمية</b>", styles['Normal']),
-                Paragraph("<b>المنتج</b>", styles['Normal'])
+                Paragraph("<b>السعر</b>", styles['Normal']),
+                Paragraph("<b>الإجمالي</b>", styles['Normal']),
             ]
         ]
         
         table_style = styles['Normal']
         table_style.fontName = ARABIC_FONT
-        
+        table_style.alignment = TA_RIGHT
+
         total_price_num = 0
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
             total_price_num += item_total
             table_data.append([
-                Paragraph(f"{item_total:,.0f} د.ع", table_style),
-                Paragraph(f"{item_data['price']:,.0f} د.ع", table_style),
+                Paragraph(item_name, table_style),
                 Paragraph(str(item_data['quantity']), table_style),
-                Paragraph(item_name, table_style)
+                Paragraph(f"{item_data['price']:,.0f} د.ع", table_style),
+                Paragraph(f"{item_total:,.0f} د.ع", table_style)
             ])
 
         pdf_table_style = TableStyle([
@@ -139,23 +147,23 @@ def create_order_pdf(order_details, filename="order.pdf"):
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('RIGHTPADDING', (0,0), (-1,-1), 12),
+            ('LEFTPADDING', (0,0), (-1,-1), 12),
         ])
 
-        order_table = Table(table_data, colWidths=[2*inch, 1.5*inch, 1*inch, 2*inch])
+        order_table = Table(table_data, colWidths=[2.5*inch, 1*inch, 1.5*inch, 1.5*inch])
         order_table.setStyle(pdf_table_style)
         story.append(order_table)
         story.append(Spacer(1, 0.2 * inch))
 
-        # المجموع الإجمالي
         total_style = styles['Heading2']
         total_style.fontName = ARABIC_FONT_BOLD
         total_style.alignment = 0
         story.append(Paragraph(f"المجموع الإجمالي: {total_price_num:,.0f} د.ع", total_style))
         story.append(Spacer(1, 0.5 * inch))
         
-        # الباركود
         if order_details['customer']['location']:
-            qr_data = f"https://maps.google.com/?q={order_details['customer']['location']['lat']},{order_details['customer']['location']['lng']}"
+            qr_data = f"https://www.google.com/maps/place/{order_details['customer']['location']['lat']},{order_details['customer']['location']['lng']}"
             qr_img = qrcode.make(qr_data)
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
@@ -192,7 +200,7 @@ def send_order():
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"<b>- الإحداثيات:</b> <a href='https://maps.google.com/?q={lat},{lng}'>الموقع الجغرافي</a>\n"
+            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps/place/{lat},{lng}'>الموقع الجغرافي</a>\n"
             text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
         else:
             text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
@@ -206,11 +214,9 @@ def send_order():
         
         send_telegram_message(text_message)
         
-        # إنشاء وإرسال ملف PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
             send_telegram_document(pdf_file, caption=f"فاتورة طلب السيد {order_details['customer']['name']}")
-            os.remove(pdf_file)
         
         return jsonify({'status': 'success', 'message': 'Order and PDF sent to Telegram successfully.'})
 
@@ -218,12 +224,14 @@ def send_order():
         print(f"Error processing order: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# مسار استقبال الصورة
 @app.route('/send-photo', methods=['POST'])
 def send_photo():
     try:
-        photo_file = request.files['photo']
-        caption = request.form.get('caption', '')
+        photo_file = request.files.get('photo')
+        if not photo_file:
+            return jsonify({'status': 'error', 'message': 'No photo file provided.'}), 400
+        
+        caption = request.form.get('caption', 'صورة مرفقة بالطلب.')
         
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         files = {'photo': photo_file}
