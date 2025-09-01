@@ -21,8 +21,8 @@ app = Flask(__name__)
 CORS(app)
 
 # بيانات بوت تيليجرام
-BOT_TOKEN = 'YOUR_BOT_TOKEN'  # استبدل بقيمة حقيقية
-CHAT_ID = 'YOUR_CHAT_ID'      # استبدل بقيمة حقيقية
+BOT_TOKEN = '8214786867:AAHsLBghSsF2le7Tx_rsLQd6GaXFWVgs_GA'  # استبدل بقيمة حقيقية
+CHAT_ID = '7836619198'      # استبدل بقيمة حقيقية
 
 # موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
