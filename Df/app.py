@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Frame
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -27,8 +27,9 @@ CORS(app)
 BOT_TOKEN = '8256210377:AAH7ogEPTvIUo9hyY2p8uCkF-Yby13weXkk'
 CHAT_ID = '7836619198'
 
-# موقع المتجر لحساب المسافة
+# موقع المتجر الفعلي (تم تحديثه)
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
+MARKET_ADDRESS = "سوق الكفاءات، شارع بغداد، كربلاء المقدسة"
 
 # تسجيل خطوط عربية جديدة
 try:
@@ -99,11 +100,26 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
         print(f"خطأ غير متوقع: {e}")
         return None
 
-# إنشاء فاتورة PDF محسنة جمالياً
-def create_order_pdf(order_details, filename="order.pdf"):
+def get_file_link(file_id):
+    """الحصول على رابط الملف من التيليجرام."""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
+    payload = {'file_id': file_id}
+    try:
+        response = requests.get(url, params=payload)
+        response.raise_for_status()
+        file_path = response.json()['result']['file_path']
+        file_link = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        return file_link
+    except requests.exceptions.RequestException as e:
+        print(f"خطأ في الحصول على رابط الملف: {e}")
+        return None
+
+# إنشاء فاتورة PDF محسنة
+def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     print(f"محاولة إنشاء ملف PDF: {filename}")
     qr_img_path_customer = None
     qr_img_path_market = None
+    qr_img_path_photo = None
     
     try:
         doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
@@ -117,13 +133,21 @@ def create_order_pdf(order_details, filename="order.pdf"):
             fontSize=30,
             textColor=colors.HexColor('#2c3e50'),
             alignment=TA_CENTER,
-            spaceAfter=15,
+            spaceAfter=5,
+        ))
+        styles.add(ParagraphStyle(
+            'MarketAddress',
+            fontName=ARABIC_FONT,
+            fontSize=12,
+            textColor=colors.HexColor('#7f8c8d'),
+            alignment=TA_CENTER,
+            spaceAfter=20,
         ))
         styles.add(ParagraphStyle(
             'SectionHeader',
             fontName=ARABIC_FONT_BOLD,
             fontSize=16,
-            textColor=colors.HexColor('#34495e'),
+            textColor=colors.HexColor('#1a5276'),
             alignment=TA_RIGHT,
             spaceAfter=10,
         ))
@@ -131,7 +155,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             'LabelText',
             fontName=ARABIC_FONT_BOLD,
             fontSize=12,
-            textColor=colors.HexColor('#7f8c8d'),
+            textColor=colors.HexColor('#4a4a4a'),
             alignment=TA_RIGHT,
             spaceAfter=5,
         ))
@@ -139,7 +163,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             'ValueText',
             fontName=ARABIC_FONT,
             fontSize=12,
-            textColor=colors.HexColor('#2c3e50'),
+            textColor=colors.HexColor('#1c2833'),
             alignment=TA_RIGHT,
             spaceAfter=15,
         ))
@@ -147,7 +171,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             'TotalText',
             fontName=ARABIC_FONT_BOLD,
             fontSize=22,
-            textColor=colors.HexColor('#c0392b'),
+            textColor=colors.HexColor('#cb4335'),
             alignment=TA_RIGHT,
             spaceBefore=15,
             spaceAfter=20,
@@ -160,18 +184,28 @@ def create_order_pdf(order_details, filename="order.pdf"):
             alignment=TA_CENTER,
             spaceAfter=5,
         ))
+        styles.add(ParagraphStyle(
+            'TableHeader',
+            fontName=ARABIC_FONT_BOLD,
+            fontSize=12,
+            textColor=colors.HexColor('#ffffff'),
+            alignment=TA_CENTER,
+        ))
+        styles.add(ParagraphStyle(
+            'TableData',
+            fontName=ARABIC_FONT,
+            fontSize=11,
+            textColor=colors.HexColor('#1c2833'),
+            alignment=TA_CENTER,
+        ))
         
         # رأس الفاتورة
         story.append(Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle']))
-        story.append(Paragraph(rtl("العراق - كربلاء - شارع الإمام علي"), styles['ValueText']))
+        story.append(Paragraph(rtl(MARKET_ADDRESS), styles['MarketAddress']))
         story.append(Spacer(1, 0.2 * inch))
 
-        # خط فاصل
-        story.append(Table([[Paragraph('<hr/>', styles['Normal'])]], colWidths=[520], style=[('GRID', (0,0), (-1,-1), 1, colors.HexColor('#bdc3c7'))]))
-        story.append(Spacer(1, 0.2 * inch))
-        
         # معلومات العميل والطلب
-        story.append(Paragraph(rtl("معلومات الطلب"), styles['SectionHeader']))
+        story.append(Paragraph(rtl("👤 معلومات العميل"), styles['SectionHeader']))
         
         info_data = [
             [Paragraph(rtl("<b>الاسم:</b>"), styles['LabelText']), Paragraph(rtl(order_details['customer']['name']), styles['ValueText'])],
@@ -183,20 +217,18 @@ def create_order_pdf(order_details, filename="order.pdf"):
         info_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ]))
         story.append(info_table)
         story.append(Spacer(1, 0.3 * inch))
 
         # جدول المنتجات
-        story.append(Paragraph(rtl("تفاصيل المنتجات"), styles['SectionHeader']))
+        story.append(Paragraph(rtl("🛒 تفاصيل المنتجات"), styles['SectionHeader']))
         
         table_header = [
-            Paragraph(rtl("السعر الإجمالي"), styles['LabelText']),
-            Paragraph(rtl("السعر"), styles['LabelText']),
-            Paragraph(rtl("الكمية"), styles['LabelText']),
-            Paragraph(rtl("المنتج"), styles['LabelText'])
+            Paragraph(rtl("السعر الإجمالي"), styles['TableHeader']),
+            Paragraph(rtl("السعر"), styles['TableHeader']),
+            Paragraph(rtl("الكمية"), styles['TableHeader']),
+            Paragraph(rtl("المنتج"), styles['TableHeader'])
         ]
         
         table_data = [table_header]
@@ -209,10 +241,10 @@ def create_order_pdf(order_details, filename="order.pdf"):
             items_count += item_data['quantity']
             
             table_data.append([
-                Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['ValueText']),
-                Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['ValueText']),
-                Paragraph(rtl(str(item_data['quantity'])), styles['ValueText']),
-                Paragraph(rtl(item_name), styles['ValueText'])
+                Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['TableData']),
+                Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['TableData']),
+                Paragraph(rtl(str(item_data['quantity'])), styles['TableData']),
+                Paragraph(rtl(item_name), styles['TableData'])
             ])
 
         table_style = TableStyle([
@@ -220,7 +252,8 @@ def create_order_pdf(order_details, filename="order.pdf"):
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d6eaf8')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('TOPPADDING', (0, 0), (-1, 0), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e9ecef')),
@@ -242,79 +275,68 @@ def create_order_pdf(order_details, filename="order.pdf"):
         total_summary_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ]))
         story.append(total_summary_table)
         story.append(Spacer(1, 0.4 * inch))
 
         # باركودات الموقع
-        story.append(Paragraph(rtl("مواقع مهمة"), styles['SectionHeader']))
+        story.append(Paragraph(rtl("📍 مواقع مهمة"), styles['SectionHeader']))
         story.append(Spacer(1, 0.2 * inch))
         
-        qr_images = []
-        
+        qr_data = []
+
         # باركود موقع المتجر
-        qr_data_market = f"https://www.google.com/maps?q={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
+        qr_data_market = f"https://www.google.com/maps/search/?api=1&query={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
         qr_img_market = qrcode.make(qr_data_market)
         qr_img_path_market = "qr_market.png"
         qr_img_market.save(qr_img_path_market)
-        
         market_image = Image(qr_img_path_market)
         market_image.drawHeight = 1.5 * inch
         market_image.drawWidth = 1.5 * inch
+        qr_data.append([market_image, Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel'])])
         
         # باركود موقع العميل
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
-            qr_data_customer = f"https://www.google.com/maps?q={lat},{lng}"
+            qr_data_customer = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
             qr_img_customer = qrcode.make(qr_data_customer)
             qr_img_path_customer = "qr_customer.png"
             qr_img_customer.save(qr_img_path_customer)
-            
             customer_image = Image(qr_img_path_customer)
             customer_image.drawHeight = 1.5 * inch
             customer_image.drawWidth = 1.5 * inch
-            
-            qr_images.append([
-                market_image,
-                Spacer(1, 0.2 * inch),
-                Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel']),
-            ])
-            qr_images.append([
-                customer_image,
-                Spacer(1, 0.2 * inch),
-                Paragraph(rtl("امسح لموقع العميل"), styles['QRCodeLabel']),
-            ])
+            qr_data.append([customer_image, Paragraph(rtl("امسح لموقع العميل"), styles['QRCodeLabel'])])
             
             # حساب المسافة وإضافتها
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
             story.append(Paragraph(rtl(f"<b>المسافة بين المتجر والعميل:</b> {distance:,.2f} متر"), styles['LabelText']))
             story.append(Spacer(1, 0.2 * inch))
-            
-            
-            
         else:
-            qr_images.append([
-                market_image,
-                Spacer(1, 0.2 * inch),
-                Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel']),
-            ])
             story.append(Paragraph(rtl("<b>ملاحظة:</b> لم يتم توفير موقع العميل."), styles['LabelText']))
             story.append(Spacer(1, 0.2 * inch))
+        
+        # باركود الصورة المرفقة
+        if photo_link:
+            story.append(Paragraph(rtl("🖼️ الصورة المرفقة"), styles['SectionHeader']))
+            story.append(Spacer(1, 0.2 * inch))
+
+            qr_img_photo = qrcode.make(photo_link)
+            qr_img_path_photo = "qr_photo.png"
+            qr_img_photo.save(qr_img_path_photo)
             
-        qr_table = Table(
-            [[col[0] for col in qr_images],
-             [col[2] for col in qr_images]],
-            colWidths=[2.5*inch] * len(qr_images),
-            hAlign='CENTER'
-        )
+            photo_image_qr = Image(qr_img_path_photo)
+            photo_image_qr.drawHeight = 1.5 * inch
+            photo_image_qr.drawWidth = 1.5 * inch
+
+            qr_data.append([photo_image_qr, Paragraph(rtl("امسح لرؤية الصورة"), styles['QRCodeLabel'])])
+            
+        # إنشاء الجدول للباركودات
+        qr_table_data = [[item[0] for item in qr_data], [item[1] for item in qr_data]]
+        qr_table = Table(qr_table_data, colWidths=[2*inch] * len(qr_data), hAlign='CENTER')
         qr_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('LEFTPADDING', (0,0), (-1,-1), 10),
-            ('RIGHTPADDING', (0,0), (-1,-1), 10),
         ]))
         
         story.append(qr_table)
@@ -343,50 +365,10 @@ def create_order_pdf(order_details, filename="order.pdf"):
             os.remove(qr_img_path_customer)
         if qr_img_path_market and os.path.exists(qr_img_path_market):
             os.remove(qr_img_path_market)
+        if qr_img_path_photo and os.path.exists(qr_img_path_photo):
+            os.remove(qr_img_path_photo)
         print("تم حذف صور QR المؤقتة.")
 
-# API: استقبال الطلب
-@app.route('/send-order', methods=['POST'])
-def send_order():
-    try:
-        order_details = request.get_json()
-
-        text_message = f"<b>✅ طلب جديد من السوبر ماركت:</b>\n\n"
-        text_message += f"<b>- الاسم:</b> {order_details['customer']['name']}\n"
-        text_message += f"<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
-        
-        if 'location' in order_details['customer'] and order_details['customer']['location']:
-            lat = order_details['customer']['location']['lat']
-            lng = order_details['customer']['location']['lng']
-            distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps?q={lat},{lng}'>الموقع الجغرافي</a>\n"
-            text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
-        else:
-            text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
-        
-        text_message += f"\n<b><u>المنتجات:</u></b>\n"
-        total_price = 0
-        for item_name, item_data in order_details['items'].items():
-            item_total = item_data['price'] * item_data['quantity']
-            total_price += item_total
-            text_message += f"• {item_name} (الكمية: {item_data['quantity']}) - السعر: {item_total:,.0f} د.ع\n"
-        
-        text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
-
-        send_telegram_message(text_message)
-
-        pdf_file = create_order_pdf(order_details)
-        if pdf_file:
-            send_telegram_document(
-                pdf_file, 
-                caption=f"فاتورة طلب السيد {order_details['customer']['name']} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            )
-
-        return jsonify({'status': 'success', 'message': 'تم إرسال الطلب والفاتورة بنجاح.'})
-
-    except Exception as e:
-        print(f"خطأ في معالجة الطلب: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # API: إرسال صورة
 @app.route('/send-photo', methods=['POST'])
@@ -415,14 +397,64 @@ def send_photo():
         os.remove(temp_path)
         
         response.raise_for_status()
+        
+        file_id = response.json()['result']['photo'][-1]['file_id']
+        photo_link = get_file_link(file_id)
+        
         print(f"تم إرسال الصورة بنجاح: {response.json()}")
-        return jsonify({'status': 'success', 'message': 'تم إرسال الصورة بنجاح.'})
+        return jsonify({'status': 'success', 'message': 'تم إرسال الصورة بنجاح.', 'photo_link': photo_link})
 
     except requests.exceptions.RequestException as e:
         print(f"خطأ في إرسال الصورة إلى تيليجرام: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
     except Exception as e:
         print(f"خطأ غير متوقع: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# API: استقبال الطلب
+@app.route('/send-order', methods=['POST'])
+def send_order():
+    try:
+        order_details = request.get_json()
+
+        text_message = f"<b>✅ طلب جديد من السوبر ماركت:</b>\n\n"
+        text_message += f"<b>- الاسم:</b> {order_details['customer']['name']}\n"
+        text_message += f"<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
+        
+        if 'location' in order_details['customer'] and order_details['customer']['location']:
+            lat = order_details['customer']['location']['lat']
+            lng = order_details['customer']['location']['lng']
+            distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
+            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>الموقع الجغرافي</a>\n"
+            text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
+        else:
+            text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
+        
+        text_message += f"\n<b><u>المنتجات:</u></b>\n"
+        total_price = 0
+        for item_name, item_data in order_details['items'].items():
+            item_total = item_data['price'] * item_data['quantity']
+            total_price += item_total
+            text_message += f"• {item_name} (الكمية: {item_data['quantity']}) - السعر: {item_total:,.0f} د.ع\n"
+        
+        text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
+
+        send_telegram_message(text_message)
+        
+        photo_link = order_details.get('photo_link')
+        
+        pdf_file = create_order_pdf(order_details, photo_link)
+        if pdf_file:
+            send_telegram_document(
+                pdf_file, 
+                caption=f"فاتورة طلب السيد {order_details['customer']['name']} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+
+        return jsonify({'status': 'success', 'message': 'تم إرسال الطلب والفاتورة بنجاح.'})
+
+    except Exception as e:
+        print(f"خطأ في معالجة الطلب: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 if __name__ == '__main__':
