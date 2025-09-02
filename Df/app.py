@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Frame
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -14,12 +14,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
-from reportlab.graphics.shapes import Drawing, Rect
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.textlabels import Label
 
-# دعم العربية
+# دعم اللغة العربية
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -36,7 +32,6 @@ MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
 # تسجيل خطوط عربية جديدة
 try:
-    # استخدام الخطوط الجديدة المطلوبة
     pdfmetrics.registerFont(TTFont('Janna-LT-Regular', 'alfont_com_Janna-LT-Regular.ttf'))
     pdfmetrics.registerFont(TTFont('Janna-LT-Bold', 'alfont_com_Janna-LT-Bold.ttf'))
     ARABIC_FONT = 'Janna-LT-Regular'
@@ -94,7 +89,6 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
             response = requests.post(url, data=payload, files=files, timeout=30)
             response.raise_for_status()
             print(f"تم إرسال الملف بنجاح: {response.json()}")
-            # حذف الملف بعد التأكد من اكتمال الإرسال بنجاح
             os.remove(file_path)
             print(f"تم حذف ملف PDF: {file_path}")
             return response
@@ -108,138 +102,103 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
 # إنشاء فاتورة PDF محسنة جمالياً
 def create_order_pdf(order_details, filename="order.pdf"):
     print(f"محاولة إنشاء ملف PDF: {filename}")
-    qr_img_path = None
+    qr_img_path_customer = None
+    qr_img_path_market = None
+    
     try:
-        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=40, bottomMargin=40)
+        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
         story = []
         styles = getSampleStyleSheet()
 
-        # تعريف أنماط الفقرات المخصصة للنص العربي
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Title'],
+        # تعريف أنماط الفقرات المخصصة
+        styles.add(ParagraphStyle(
+            'InvoiceTitle',
             fontName=ARABIC_FONT_BOLD,
+            fontSize=30,
+            textColor=colors.HexColor('#2c3e50'),
             alignment=TA_CENTER,
-            spaceAfter=6,
-            fontSize=28,
-            textColor=colors.HexColor('#2c3e50')
-        )
-        subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
-            parent=styles['Normal'],
-            fontName=ARABIC_FONT,
-            alignment=TA_CENTER,
-            spaceAfter=20,
+            spaceAfter=15,
+        ))
+        styles.add(ParagraphStyle(
+            'SectionHeader',
+            fontName=ARABIC_FONT_BOLD,
             fontSize=16,
-            textColor=colors.HexColor('#7f8c8d')
-        )
-        header_style = ParagraphStyle(
-            'CustomHeader',
-            parent=styles['Normal'],
-            fontName=ARABIC_FONT_BOLD,
+            textColor=colors.HexColor('#34495e'),
             alignment=TA_RIGHT,
-            spaceAfter=8,
-            fontSize=14,
-            textColor=colors.HexColor('#34495e')
-        )
-        normal_style = ParagraphStyle(
-            'CustomNormal',
-            parent=styles['Normal'],
+            spaceAfter=10,
+        ))
+        styles.add(ParagraphStyle(
+            'LabelText',
+            fontName=ARABIC_FONT_BOLD,
+            fontSize=12,
+            textColor=colors.HexColor('#7f8c8d'),
+            alignment=TA_RIGHT,
+            spaceAfter=5,
+        ))
+        styles.add(ParagraphStyle(
+            'ValueText',
             fontName=ARABIC_FONT,
-            alignment=TA_RIGHT,
-            spaceAfter=4,
             fontSize=12,
-            textColor=colors.HexColor('#2c3e50')
-        )
-        highlight_style = ParagraphStyle(
-            'HighlightStyle',
-            parent=styles['Normal'],
-            fontName=ARABIC_FONT_BOLD,
+            textColor=colors.HexColor('#2c3e50'),
             alignment=TA_RIGHT,
-            spaceAfter=4,
-            fontSize=12,
-            textColor=colors.HexColor('#e74c3c')
-        )
-        total_style = ParagraphStyle(
-            'TotalStyle',
-            parent=styles['Heading2'],
+            spaceAfter=15,
+        ))
+        styles.add(ParagraphStyle(
+            'TotalText',
             fontName=ARABIC_FONT_BOLD,
+            fontSize=22,
+            textColor=colors.HexColor('#c0392b'),
             alignment=TA_RIGHT,
             spaceBefore=15,
-            fontSize=20,
-            textColor=colors.HexColor('#c0392b')
-        )
-        qr_text_style = ParagraphStyle(
-            'QRTextStyle',
-            parent=styles['Normal'],
-            fontName=ARABIC_FONT_BOLD,
-            alignment=TA_CENTER,
-            spaceAfter=10,
-            fontSize=14,
-            textColor=colors.HexColor('#2c3e50')
-        )
-        footer_style = ParagraphStyle(
-            'FooterStyle',
-            parent=styles['Normal'],
+            spaceAfter=20,
+        ))
+        styles.add(ParagraphStyle(
+            'QRCodeLabel',
             fontName=ARABIC_FONT,
-            alignment=TA_CENTER,
-            spaceBefore=20,
             fontSize=10,
-            textColor=colors.HexColor('#7f8c8d')
-        )
-
-        # رأس الفاتورة مع تصميم محسن
-        header_bg = Drawing(500, 80)
-        header_bg.add(Rect(0, 0, 500, 80, fillColor=colors.HexColor('#3498db'), strokeColor=None))
-        story.append(header_bg)
+            textColor=colors.HexColor('#7f8c8d'),
+            alignment=TA_CENTER,
+            spaceAfter=5,
+        ))
         
-        story.append(Spacer(1, 0.1 * inch))
-        story.append(Paragraph(rtl("سوبر ماركت العراق"), title_style))
-        story.append(Paragraph(rtl("فاتورة طلب"), subtitle_style))
+        # رأس الفاتورة
+        story.append(Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle']))
+        story.append(Paragraph(rtl("العراق - كربلاء - شارع الإمام علي"), styles['ValueText']))
+        story.append(Spacer(1, 0.2 * inch))
+
+        # خط فاصل
+        story.append(Table([[Paragraph('<hr/>', styles['Normal'])]], colWidths=[520], style=[('GRID', (0,0), (-1,-1), 1, colors.HexColor('#bdc3c7'))]))
         story.append(Spacer(1, 0.2 * inch))
         
-        # خط فاصل ملوّن
-        story.append(Paragraph('<hr color="#3498db" size="3"/>', styles['Normal']))
+        # معلومات العميل والطلب
+        story.append(Paragraph(rtl("معلومات الطلب"), styles['SectionHeader']))
+        
+        info_data = [
+            [Paragraph(rtl("<b>الاسم:</b>"), styles['LabelText']), Paragraph(rtl(order_details['customer']['name']), styles['ValueText'])],
+            [Paragraph(rtl("<b>الهاتف:</b>"), styles['LabelText']), Paragraph(rtl(order_details['customer']['phone']), styles['ValueText'])],
+            [Paragraph(rtl("<b>تاريخ الطلب:</b>"), styles['LabelText']), Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])],
+        ]
+        
+        info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
+        info_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        story.append(info_table)
         story.append(Spacer(1, 0.3 * inch))
 
-        # تفاصيل العميل والطلب في جدول ذو مظهر حديث
-        customer_info_table_data = [
-            [Paragraph(rtl("<b>الاسم:</b>"), header_style), Paragraph(rtl(order_details['customer']['name']), normal_style)],
-            [Paragraph(rtl("<b>الهاتف:</b>"), header_style), Paragraph(rtl(order_details['customer']['phone']), normal_style)],
-            [Paragraph(rtl("<b>تاريخ الطلب:</b>"), header_style), Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), normal_style)]
-        ]
-        
-        customer_table = Table(customer_info_table_data, colWidths=[2*inch, 4*inch])
-        customer_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
-            ('BACKGROUND', (1, 0), (1, -1), colors.HexColor('#ffffff')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (0, 0), (0, -1), ARABIC_FONT_BOLD),
-            ('FONTNAME', (1, 0), (1, -1), ARABIC_FONT),
-            ('FONTSIZE', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 10),
-            ('LEFTPADDING', (0, 0), (-1, -1), 10),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#bdc3c7')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#ecf0f1')),
-        ]))
-        story.append(customer_table)
-        story.append(Spacer(1, 0.4 * inch))
-
-        # جدول المنتجات بتصميم حديث
-        story.append(Paragraph(rtl("<b>المنتجات المطلوبة</b>"), header_style))
-        story.append(Spacer(1, 0.1 * inch))
+        # جدول المنتجات
+        story.append(Paragraph(rtl("تفاصيل المنتجات"), styles['SectionHeader']))
         
         table_header = [
-            Paragraph(rtl("الإجمالي"), header_style),
-            Paragraph(rtl("السعر"), header_style),
-            Paragraph(rtl("الكمية"), header_style),
-            Paragraph(rtl("المنتج"), header_style)
+            Paragraph(rtl("السعر الإجمالي"), styles['LabelText']),
+            Paragraph(rtl("السعر"), styles['LabelText']),
+            Paragraph(rtl("الكمية"), styles['LabelText']),
+            Paragraph(rtl("المنتج"), styles['LabelText'])
         ]
+        
         table_data = [table_header]
         total_price_num = 0
         items_count = 0
@@ -249,121 +208,127 @@ def create_order_pdf(order_details, filename="order.pdf"):
             total_price_num += item_total
             items_count += item_data['quantity']
             
-            # تناوب ألوان الصفوف
-            bg_color = colors.HexColor('#ffffff') if len(table_data) % 2 == 1 else colors.HexColor('#f8f9fa')
-            
             table_data.append([
-                Paragraph(rtl(f"{item_total:,.0f} د.ع"), normal_style),
-                Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), normal_style),
-                Paragraph(rtl(str(item_data['quantity'])), normal_style),
-                Paragraph(rtl(item_name), normal_style)
+                Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['ValueText']),
+                Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['ValueText']),
+                Paragraph(rtl(str(item_data['quantity'])), styles['ValueText']),
+                Paragraph(rtl(item_name), styles['ValueText'])
             ])
 
         table_style = TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('TOPPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#d6eaf8')),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('TOPPADDING', (0, 0), (-1, 0), 10),
             ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e9ecef')),
             ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ])
         
-        # إضافة ألوان متناوبة للصفوف
-        for i in range(1, len(table_data)):
-            if i % 2 == 0:  # الصفوف الزوجية
-                table_style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#f8f9fa'))
-
-        col_widths = [1.5*inch, 1.5*inch, 1*inch, 2.5*inch]
-        order_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        order_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 2.5*inch])
         order_table.setStyle(table_style)
         story.append(order_table)
-        story.append(Spacer(1, 0.4 * inch))
+        story.append(Spacer(1, 0.3 * inch))
 
-        # قسم الإجمالي بتصميم مميز
-        summary_data = [
-            [Paragraph(rtl("<b>عدد المنتجات:</b>"), highlight_style), Paragraph(rtl(str(items_count)), normal_style)],
-            [Paragraph(rtl("<b>المجموع الإجمالي:</b>"), total_style), Paragraph(rtl(f"{total_price_num:,.0f} د.ع"), total_style)]
+        # قسم الإجمالي
+        total_summary_data = [
+            [Paragraph(rtl("عدد المنتجات:"), styles['LabelText']), Paragraph(rtl(f"{items_count}"), styles['ValueText'])],
+            [Paragraph(rtl("المجموع الإجمالي:"), styles['TotalText']), Paragraph(rtl(f"{total_price_num:,.0f} د.ع"), styles['TotalText'])]
         ]
         
-        summary_table = Table(summary_data, colWidths=[4*inch, 2.5*inch])
-        summary_table.setStyle(TableStyle([
+        total_summary_table = Table(total_summary_data, colWidths=[4*inch, 2.5*inch])
+        total_summary_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT_BOLD),
-            ('FONTSIZE', (0, 0), (-1, -1), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-            ('TOPPADDING', (0, 0), (-1, -1), 12),
-            ('LEFTPADDING', (0, 0), (-1, -1), 15),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#fff3cd')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#ffc107')),
-            ('LINEABOVE', (0, 1), (-1, 1), 2, colors.HexColor('#ffc107')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ]))
-        story.append(summary_table)
-        story.append(Spacer(1, 0.5 * inch))
+        story.append(total_summary_table)
+        story.append(Spacer(1, 0.4 * inch))
 
-        # قسم الباركود (موقع العميل) مع تحسينات
+        # باركودات الموقع
+        story.append(Paragraph(rtl("مواقع مهمة"), styles['SectionHeader']))
+        story.append(Spacer(1, 0.2 * inch))
+        
+        qr_images = []
+        
+        # باركود موقع المتجر
+        qr_data_market = f"https://www.google.com/maps?q={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
+        qr_img_market = qrcode.make(qr_data_market)
+        qr_img_path_market = "qr_market.png"
+        qr_img_market.save(qr_img_path_market)
+        
+        market_image = Image(qr_img_path_market)
+        market_image.drawHeight = 1.5 * inch
+        market_image.drawWidth = 1.5 * inch
+        
+        # باركود موقع العميل
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
+            qr_data_customer = f"https://www.google.com/maps?q={lat},{lng}"
+            qr_img_customer = qrcode.make(qr_data_customer)
+            qr_img_path_customer = "qr_customer.png"
+            qr_img_customer.save(qr_img_path_customer)
+            
+            customer_image = Image(qr_img_path_customer)
+            customer_image.drawHeight = 1.5 * inch
+            customer_image.drawWidth = 1.5 * inch
+            
+            qr_images.append([
+                market_image,
+                Spacer(1, 0.2 * inch),
+                Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel']),
+            ])
+            qr_images.append([
+                customer_image,
+                Spacer(1, 0.2 * inch),
+                Paragraph(rtl("امسح لموقع العميل"), styles['QRCodeLabel']),
+            ])
+            
+            # حساب المسافة وإضافتها
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            
-            location_info = [
-                [Paragraph(rtl("<b>موقع العميل</b>"), header_style)],
-                [Paragraph(rtl(f"الإحداثيات: {lat:.6f}, {lng:.6f}"), normal_style)],
-                [Paragraph(rtl(f"المسافة عن المتجر: {distance:,.0f} متر"), normal_style)]
-            ]
-            
-            location_table = Table(location_info, colWidths=[7*inch])
-            location_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e9ecef')),
-                ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
-                ('FONTSIZE', (0, 0), (-1, -1), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
-            ]))
-            story.append(location_table)
+            story.append(Paragraph(rtl(f"<b>المسافة بين المتجر والعميل:</b> {distance:,.2f} متر"), styles['LabelText']))
             story.append(Spacer(1, 0.2 * inch))
             
-            # إنشاء QR code
-            qr_data = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
-            qr_img = qrcode.make(qr_data)
-            qr_img_path = "qr_code.png"
-            qr_img.save(qr_img_path)
             
-            story.append(Paragraph(rtl("امسح الباركود للوصول إلى موقع العميل"), qr_text_style))
-            story.append(Spacer(1, 0.1 * inch))
             
-            qr_image = Image(qr_img_path)
-            qr_image.drawHeight = 2*inch
-            qr_image.drawWidth = 2*inch
+        else:
+            qr_images.append([
+                market_image,
+                Spacer(1, 0.2 * inch),
+                Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel']),
+            ])
+            story.append(Paragraph(rtl("<b>ملاحظة:</b> لم يتم توفير موقع العميل."), styles['LabelText']))
+            story.append(Spacer(1, 0.2 * inch))
             
-            # وضع QR code في منتصف الصفحة
-            qr_table_data = [[qr_image]]
-            qr_table = Table(qr_table_data, colWidths=[7*inch])
-            qr_table.setStyle(TableStyle([
-                ('ALIGN', (0,0), (0,0), 'CENTER'),
-                ('VALIGN', (0,0), (0,0), 'MIDDLE'),
-                ('BACKGROUND', (0,0), (0,0), colors.HexColor('#ffffff')),
-                ('BOX', (0,0), (0,0), 1, colors.HexColor('#3498db')),
-                ('ROUNDEDCORNERS', (0,0), (0,0), 10)
-            ]))
-            story.append(qr_table)
-
-        story.append(Spacer(1, 0.4 * inch))
+        qr_table = Table(
+            [[col[0] for col in qr_images],
+             [col[2] for col in qr_images]],
+            colWidths=[2.5*inch] * len(qr_images),
+            hAlign='CENTER'
+        )
+        qr_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ]))
         
-        # تذييل الصفحة
-        footer = Paragraph(rtl(f"شكراً لاختياركم سوبر ماركت العراق | تم إنشاء الفاتورة في {datetime.now().strftime('%Y-%m-%d %H:%M')}"), footer_style)
-        story.append(footer)
+        story.append(qr_table)
+        story.append(Spacer(1, 0.5 * inch))
+
+        # تذييل الفاتورة
+        footer_style = ParagraphStyle(
+            'FooterStyle',
+            fontName=ARABIC_FONT,
+            fontSize=10,
+            textColor=colors.HexColor('#7f8c8d'),
+            alignment=TA_CENTER,
+        )
+        story.append(Paragraph(rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), footer_style))
 
         doc.build(story)
         print(f"تم إنشاء ملف PDF بنجاح: {filename}")
@@ -373,10 +338,12 @@ def create_order_pdf(order_details, filename="order.pdf"):
         print(f"خطأ في إنشاء ملف PDF: {e}")
         return None
     finally:
-        # حذف صورة QR بعد استخدامها
-        if qr_img_path and os.path.exists(qr_img_path):
-            os.remove(qr_img_path)
-            print(f"تم حذف صورة QR: {qr_img_path}")
+        # حذف صور QR بعد استخدامها
+        if qr_img_path_customer and os.path.exists(qr_img_path_customer):
+            os.remove(qr_img_path_customer)
+        if qr_img_path_market and os.path.exists(qr_img_path_market):
+            os.remove(qr_img_path_market)
+        print("تم حذف صور QR المؤقتة.")
 
 # API: استقبال الطلب
 @app.route('/send-order', methods=['POST'])
@@ -392,7 +359,7 @@ def send_order():
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>الموقع الجغرافي</a>\n"
+            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps?q={lat},{lng}'>الموقع الجغرافي</a>\n"
             text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
         else:
             text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
@@ -406,10 +373,8 @@ def send_order():
         
         text_message += f"\n<b>المجموع الإجمالي: {total_price:,.0f} د.ع</b>"
 
-        # إرسال الرسالة
         send_telegram_message(text_message)
 
-        # إنشاء وإرسال PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
             send_telegram_document(
@@ -423,26 +388,22 @@ def send_order():
         print(f"خطأ في معالجة الطلب: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# API: إرسال صورة - الإصدار المصحح
+# API: إرسال صورة
 @app.route('/send-photo', methods=['POST'])
 def send_photo():
     try:
-        # التحقق من وجود ملف الصورة في الطلب
         if 'photo' not in request.files:
             return jsonify({'status': 'error', 'message': 'لم يتم توفير ملف الصورة.'}), 400
         
         photo_file = request.files['photo']
         
-        # التحقق من أن الملف له اسم (تم تحميله بالفعل)
         if photo_file.filename == '':
             return jsonify({'status': 'error', 'message': 'لم يتم اختيار ملف.'}), 400
         
         caption = request.form.get('caption', 'صورة مرفقة بالطلب.')
         
-        # إعداد الطلب لإرسال الصورة
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         
-        # حفظ الملف مؤقتاً ثم إرساله
         temp_path = f"temp_{photo_file.filename}"
         photo_file.save(temp_path)
         
@@ -451,7 +412,6 @@ def send_photo():
             data = {'chat_id': CHAT_ID, 'caption': caption}
             response = requests.post(url, data=data, files=files, timeout=30)
         
-        # حذف الملف المؤقت
         os.remove(temp_path)
         
         response.raise_for_status()
@@ -467,3 +427,4 @@ def send_photo():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000), debug=True)
+
