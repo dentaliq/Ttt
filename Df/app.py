@@ -30,15 +30,16 @@ CHAT_ID = '7836619198'
 # موقع المتجر لحساب المسافة
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
-# تسجيل خطوط عربية
-# تأكد من أن ملفات الخطوط 'alfont_com_Janna-LT-Regular.ttf' و 'alfont_com_Janna-LT-Bold.ttf' موجودة في نفس مجلد السكربت.
+# تسجيل خطوط عربية جديدة
 try:
-    pdfmetrics.registerFont(TTFont('Janna-Regular', 'alfont_com_Janna-LT-Regular.ttf'))
-    pdfmetrics.registerFont(TTFont('Janna-Bold', 'alfont_com_Janna-LT-Bold.ttf'))
-    ARABIC_FONT = 'Janna-Regular'
-    ARABIC_FONT_BOLD = 'Janna-Bold'
+    # استخدام الخطوط الجديدة المطلوبة
+    pdfmetrics.registerFont(TTFont('Janna-LT-Regular', 'alfont_com_Janna-LT-Regular.ttf'))
+    pdfmetrics.registerFont(TTFont('Janna-LT-Bold', 'alfont_com_Janna-LT-Bold.ttf'))
+    ARABIC_FONT = 'Janna-LT-Regular'
+    ARABIC_FONT_BOLD = 'Janna-LT-Bold'
+    print("تم تحميل خطوط Janna بنجاح")
 except Exception as e:
-    print(f"خطأ في تحميل الخط العربي: {e}. سيتم استخدام Helvetica كبديل.")
+    print(f"خطأ في تحميل الخط العربي: {e}. سيتم استخدام الخطوط الافتراضية كبديل.")
     ARABIC_FONT = 'Helvetica'
     ARABIC_FONT_BOLD = 'Helvetica-Bold'
 
@@ -89,11 +90,10 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
             response = requests.post(url, data=payload, files=files, timeout=30)
             response.raise_for_status()
             print(f"تم إرسال الملف بنجاح: {response.json()}")
-        
-        # حذف الملف بعد التأكد من اكتمال الإرسال بنجاح
-        os.remove(file_path)
-        print(f"تم حذف ملف PDF: {file_path}")
-        return response
+            # حذف الملف بعد التأكد من اكتمال الإرسال بنجاح
+            os.remove(file_path)
+            print(f"تم حذف ملف PDF: {file_path}")
+            return response
     except requests.exceptions.RequestException as e:
         print(f"خطأ في إرسال الملف إلى تيليجرام: {e}")
         return None
@@ -202,6 +202,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         ]
         table_data = [table_header]
         total_price_num = 0
+
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
             total_price_num += item_total
@@ -215,7 +216,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         table_style = TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
@@ -226,6 +227,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
             ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#3498db')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ])
+
         col_widths = [1.5*inch, 1.5*inch, 1*inch, 2.5*inch]
         order_table = Table(table_data, colWidths=col_widths, repeatRows=1)
         order_table.setStyle(table_style)
@@ -250,7 +252,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
-            qr_data = f"http://maps.google.com/maps?q={lat},{lng}"
+            qr_data = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
             qr_img = qrcode.make(qr_data)
             qr_img_path = "qr_code.png"
             qr_img.save(qr_img_path)
@@ -275,6 +277,7 @@ def create_order_pdf(order_details, filename="order.pdf"):
         doc.build(story)
         print(f"تم إنشاء ملف PDF بنجاح: {filename}")
         return filename
+
     except Exception as e:
         print(f"خطأ في إنشاء ملف PDF: {e}")
         return None
@@ -293,16 +296,16 @@ def send_order():
         text_message = f"<b>✅ طلب جديد من السوبر ماركت:</b>\n\n"
         text_message += f"<b>- الاسم:</b> {order_details['customer']['name']}\n"
         text_message += f"<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
-
+        
         if 'location' in order_details['customer'] and order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"<b>- الإحداثيات:</b> <a href='http://maps.google.com/maps?q={lat},{lng}'>الموقع الجغرافي</a>\n"
+            text_message += f"<b>- الإحداثيات:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>الموقع الجغرافي</a>\n"
             text_message += f"<b>- المسافة عن المتجر:</b> {distance:,.2f} متر\n"
         else:
             text_message += f"<b>- ملاحظة:</b> لم يتمكن العميل من إرسال موقعه الجغرافي.\n"
-
+        
         text_message += f"\n<b><u>المنتجات:</u></b>\n"
         total_price = 0
         for item_name, item_data in order_details['items'].items():
@@ -314,12 +317,12 @@ def send_order():
 
         # إرسال الرسالة
         send_telegram_message(text_message)
-        
+
         # إنشاء وإرسال PDF
         pdf_file = create_order_pdf(order_details)
         if pdf_file:
             send_telegram_document(
-                pdf_file,
+                pdf_file, 
                 caption=f"فاتورة طلب السيد {order_details['customer']['name']} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
             )
 
@@ -341,11 +344,9 @@ def send_photo():
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         files = {'photo': photo_file}
         payload = {'chat_id': CHAT_ID, 'caption': caption}
-
         response = requests.post(url, data=payload, files=files, timeout=30)
         response.raise_for_status()
         print(f"تم إرسال الصورة بنجاح: {response.json()}")
-
         return jsonify({'status': 'success', 'message': 'تم إرسال الصورة بنجاح.'})
 
     except requests.exceptions.RequestException as e:
