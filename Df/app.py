@@ -203,43 +203,52 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         products_data = [table_header]
         total_price, total_qty = 0, 0
         
-        for i, (item_name, item_data) in enumerate(order_details['items'].items()):
-            item_total = item_data['price'] * item_data['quantity']
-            total_price += item_total
-            total_qty += item_data['quantity']
-            
-            # Apply different styling for special columns (quantity and total price)
+        items_dict = order_details.get('items')
+        # فحص إضافي للتأكد من أن البيانات هي dict وليست فارغة
+        if isinstance(items_dict, dict) and items_dict:
+            for i, (item_name, item_data) in enumerate(items_dict.items()):
+                # إضافة فحص للتأكد من وجود 'price' و 'quantity'
+                if 'price' in item_data and 'quantity' in item_data:
+                    item_total = item_data['price'] * item_data['quantity']
+                    total_price += item_total
+                    total_qty += item_data['quantity']
+                    
+                    products_data.append([
+                        Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['SpecialRightArabic_LeftNumber']),
+                        Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['RightArabic_LeftNumber']),
+                        Paragraph(rtl(str(item_data['quantity'])), styles['SpecialRightArabic_LeftNumber']),
+                        Paragraph(rtl(item_name), styles['TableData'])
+                    ])
+        else:
+            # إضافة رسالة في الفاتورة إذا لم تكن هناك منتجات
             products_data.append([
-                Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['SpecialRightArabic_LeftNumber']),
-                Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['RightArabic_LeftNumber']),
-                Paragraph(rtl(str(item_data['quantity'])), styles['SpecialRightArabic_LeftNumber']),
-                Paragraph(rtl(item_name), styles['TableData'])
+                Paragraph(rtl("لا توجد منتجات في هذا الطلب."), styles['TableData'])
             ])
+            products_table = Table(products_data, colWidths=[doc.width])
+            products_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('BACKGROUND', (0,0), (-1,0), COLOR_PRIMARY),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#DDDDDD')),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#AAAAAA')),
+            ]))
+            story.append(products_table)
+            doc.build(story, onFirstPage=page_layout, onLaterPages=page_layout)
+            return filename
         
         products_table = Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch])
         products_table.setStyle(TableStyle([
-            # Header row styling
             ('BACKGROUND', (0, 0), (0, 0), COLOR_SPECIAL),
             ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),
             ('BACKGROUND', (2, 0), (2, 0), COLOR_SPECIAL),
             ('BACKGROUND', (3, 0), (3, 0), COLOR_PRIMARY),
-            
-            # Data rows styling - alternating colors
             ('BACKGROUND', (0, 1), (0, -1), COLOR_SPECIAL_BG),
             ('BACKGROUND', (1, 1), (1, -1), COLOR_TABLE_BG1),
             ('BACKGROUND', (2, 1), (2, -1), COLOR_SPECIAL_BG),
             ('BACKGROUND', (3, 1), (3, -1), COLOR_TABLE_BG1),
-            
-            # Apply alternating row colors for better readability
-            ('BACKGROUND', (0, 1), (-1, 1), COLOR_TABLE_BG1),
-            ('BACKGROUND', (0, 3), (-1, 3), COLOR_TABLE_BG1),
-            ('BACKGROUND', (0, 5), (-1, 5), COLOR_TABLE_BG1),
-            
-            # Grid and borders
             ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#DDDDDD')),
             ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#AAAAAA')),
-            
-            # Alignment and padding
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOTTOMPADDING', (0,0), (-1,-1), 8),
@@ -348,14 +357,18 @@ def send_photo():
         response.raise_for_status()
 
         result = response.json().get('result', {})
-        if not result or 'photo' not in result:
-            return jsonify({'status': 'error', 'message': 'لم يتم استلام photo_id من تيليجرام.'}), 500
+        
+        # إضافة فحص للتأكد من أن القائمة ليست فارغة
+        if not result or 'photo' not in result or not result['photo']:
+            print("Telegram returned an empty photo list.")
+            return jsonify({'status': 'error', 'message': 'لم يتم استلام photo_id من تيليجرام. قد يكون هناك خطأ في الصورة المرفقة.'}), 500
 
         file_id = result['photo'][-1]['file_id']
         photo_link = get_file_link(file_id)
 
         return jsonify({'status': 'success', 'message': 'تم إرسال الصورة بنجاح.', 'photo_link': photo_link})
     except Exception as e:
+        print(f"فشل إرسال الصورة: {str(e)}")
         return jsonify({'status': 'error', 'message': f"فشل إرسال الصورة: {str(e)}"}), 500
 
 # API: استقبال الطلب
@@ -363,23 +376,33 @@ def send_photo():
 def send_order():
     try:
         order_details = request.get_json()
+        print("Received order details:", json.dumps(order_details, indent=2))
         
         # إنشاء رسالة نصية للطلب
-        text_message = f"<b>✅ طلب جديد:</b>\n\n<b>- الاسم:</b> {order_details['customer']['name']}\n<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
+        text_message = f"<b>✅ طلب جديد:</b>\n\n<b>- الاسم:</b> {order_details.get('customer', {}).get('name', 'غير متوفر')}\n<b>- الهاتف:</b> {order_details.get('customer', {}).get('phone', 'غير متوفر')}\n"
         
-        if order_details['customer'].get('location'):
-            lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
+        customer_location = order_details.get('customer', {}).get('location')
+        if customer_location:
+            lat, lng = customer_location.get('lat'), customer_location.get('lng')
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            text_message += f"<b>- الموقع:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>رابط</a>\n<b>- المسافة:</b> {distance:,.2f} متر\n"
+            text_message += f"<b>- الموقع:</b> <a href='http://maps.google.com/?q={lat},{lng}'>رابط</a>\n<b>- المسافة:</b> {distance:,.2f} متر\n"
         
         total_price = 0
         total_qty = 0
         text_message += "\n<b>المنتجات:</b>\n"
-        for item_name, item_data in order_details['items'].items():
-            item_total = item_data['price'] * item_data['quantity']
-            total_price += item_total
-            total_qty += item_data['quantity']
-            text_message += f"• {item_name} × {item_data['quantity']} = {item_total:,.0f} د.ع\n"
+        items_dict = order_details.get('items', {})
+        
+        if not items_dict:
+            text_message += "لا توجد منتجات في هذا الطلب."
+        else:
+            for item_name, item_data in items_dict.items():
+                # إضافة فحص للتأكد من وجود 'price' و 'quantity'
+                if 'price' in item_data and 'quantity' in item_data:
+                    item_total = item_data['price'] * item_data['quantity']
+                    total_price += item_total
+                    total_qty += item_data['quantity']
+                    text_message += f"• {item_name} × {item_data['quantity']} = {item_total:,.0f} د.ع\n"
+        
         text_message += f"\n<b>الإجمالي: {total_price:,.0f} د.ع</b>"
 
         # إرسال الرسالة النصية
@@ -392,10 +415,10 @@ def send_order():
         except Exception as pdf_error:
             # طباعة الخطأ في console و إرساله لتيليجرام لتنبيهك
             print(f"Error creating PDF: {pdf_error}")
-            send_telegram_message(f"🚨 خطأ في إنشاء الفاتورة لطلب {order_details['customer']['name']}: {pdf_error}")
+            send_telegram_message(f"🚨 خطأ في إنشاء الفاتورة لطلب {order_details.get('customer', {}).get('name', 'مجهول')}: {pdf_error}")
         
         if pdf_file:
-            send_telegram_document(pdf_file, caption=f"فاتورة طلب {order_details['customer']['name']} - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+            send_telegram_document(pdf_file, caption=f"فاتورة طلب {order_details.get('customer', {}).get('name', 'مجهول')} - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         
         return jsonify({'status': 'success', 'message': 'تم إرسال الطلب والفاتورة بنجاح.'})
     
