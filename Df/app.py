@@ -28,6 +28,13 @@ CHAT_ID = '7836619198'
 # موقع المتجر الفعلي
 MARKET_LOCATION = {'lat': 32.6468089, 'lng': 43.9782430}
 
+# معلومات المتجر
+MARKET_INFO = {
+    'name': 'سوقنا الإلكتروني',
+    'website': 'www.oursite.com',
+    'phone': '07701234567'
+}
+
 # تسجيل خطوط عربية
 try:
     pdfmetrics.registerFont(TTFont('Janna-LT-Regular', 'alfont_com_Janna-LT-Regular.ttf'))
@@ -94,13 +101,24 @@ def get_file_link(file_id):
         print(f"خطأ الحصول على رابط: {e}")
         return None
 
-# دالة لرسم خلفية الصفحة (سوف نستخدمها بشكل مختلف)
+# دالة لرسم خلفية الصفحة
 def page_layout(canvas, doc):
     canvas.saveState()
     # Header Rectangle
     header_height = 1.0 * inch
-    canvas.setFillColor(colors.HexColor('#3C4043')) # Dark Gray
+    canvas.setFillColor(colors.HexColor('#3C4043'))  # Dark Gray
     canvas.rect(0, doc.height + doc.topMargin - header_height, doc.width + 2*doc.leftMargin, header_height, fill=1, stroke=0)
+    
+    # Footer Rectangle
+    footer_height = 0.5 * inch
+    canvas.setFillColor(colors.HexColor('#3C4043'))
+    canvas.rect(0, 0, doc.width + 2*doc.leftMargin, footer_height, fill=1, stroke=0)
+    
+    # Footer Text
+    canvas.setFillColor(colors.white)
+    canvas.setFont(ARABIC_FONT, 10)
+    footer_text = rtl(f"{MARKET_INFO['name']} - {MARKET_INFO['website']} - {MARKET_INFO['phone']}")
+    canvas.drawCentredString(doc.width/2 + doc.leftMargin, 0.2*inch, footer_text)
     
     canvas.restoreState()
 
@@ -109,11 +127,11 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     qr_img_path_customer, qr_img_path_market, qr_img_path_photo = None, None, None
     try:
         # Define Color Palette
-        COLOR_PRIMARY = colors.HexColor('#3C4043') # Dark Gray
-        COLOR_ACCENT = colors.HexColor('#1A73E8') # Google Blue
+        COLOR_PRIMARY = colors.HexColor('#3C4043')  # Dark Gray
+        COLOR_ACCENT = colors.HexColor('#1A73E8')  # Google Blue
         COLOR_TEXT_LIGHT = colors.HexColor('#6B6E70')
-        COLOR_TABLE_BG1 = colors.HexColor('#F5F7FA') # Very light blue-gray
-        COLOR_TABLE_BG2 = colors.HexColor('#E8EDF3') # Slightly darker light blue-gray
+        COLOR_TABLE_BG1 = colors.HexColor('#F5F7FA')  # Very light blue-gray
+        COLOR_TABLE_BG2 = colors.HexColor('#E8EDF3')  # Slightly darker light blue-gray
         
         # Custom styles
         styles = getSampleStyleSheet()
@@ -131,7 +149,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         
         styles.add(ParagraphStyle('TotalLabel', fontName=ARABIC_FONT_BOLD, fontSize=18, textColor=COLOR_PRIMARY, alignment=TA_RIGHT))
         styles.add(ParagraphStyle('TotalValue', fontName=ARABIC_FONT_BOLD, fontSize=20, textColor=COLOR_ACCENT, alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('FooterText', fontName=ARABIC_FONT, fontSize=10, textColor=COLOR_TEXT_LIGHT, alignment=TA_CENTER))
+        styles.add(ParagraphStyle('FooterText', fontName=ARABIC_FONT, fontSize=10, textColor=colors.white, alignment=TA_CENTER))
         styles.add(ParagraphStyle('QRCodeLabel', fontName=ARABIC_FONT_BOLD, fontSize=10, textColor=COLOR_PRIMARY, alignment=TA_CENTER))
 
         # A new style to handle right-aligned Arabic text and left-aligned LTR numbers
@@ -180,6 +198,9 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             total_price += item_total
             total_qty += item_data['quantity']
             
+            # Apply background color to alternate rows
+            bg_color = COLOR_TABLE_BG1 if i % 2 == 0 else COLOR_TABLE_BG2
+            
             products_data.append([
                 Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['RightArabic_LeftNumber']),
                 Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['RightArabic_LeftNumber']),
@@ -196,6 +217,10 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            # Apply alternating row colors
+            ('BACKGROUND', (0, 1), (-1, 1), COLOR_TABLE_BG1),
+            ('BACKGROUND', (0, 3), (-1, 3), COLOR_TABLE_BG1),
+            ('BACKGROUND', (0, 5), (-1, 5), COLOR_TABLE_BG1),
         ]))
         story.append(products_table)
         story.append(Spacer(1, 0.3*inch))
@@ -219,18 +244,18 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         story.append(summary_table)
         story.append(Spacer(1, 0.4*inch))
 
-        # QR Codes Section
+        # QR Codes Section with improved design
         if order_details['customer'].get('location') or photo_link:
-            story.append(Paragraph(rtl("رموز QR"), styles['SectionHeader']))
-            qr_table_data = [[], []]
+            story.append(Paragraph(rtl("رموز QR للوصول السريع"), styles['SectionHeader']))
+            
+            # Create a container with background for QR codes
+            qr_table_data = []
             
             # QR for Market Location
             qr_data_market = f"https://www.google.com/maps/search/?api=1&query={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
             qr_img_path_market = "qr_market.png"
             qrcode.make(qr_data_market).save(qr_img_path_market)
-            img_market = Image(qr_img_path_market, 1.5*inch, 1.5*inch)
-            qr_table_data[0].append(img_market)
-            qr_table_data[1].append(Paragraph(rtl("موقع المتجر"), styles['QRCodeLabel']))
+            img_market = Image(qr_img_path_market, 1.2*inch, 1.2*inch)
             
             # QR for Customer Location
             if order_details['customer'].get('location'):
@@ -238,26 +263,59 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
                 qr_data_customer = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
                 qr_img_path_customer = "qr_customer.png"
                 qrcode.make(qr_data_customer).save(qr_img_path_customer)
-                img_customer = Image(qr_img_path_customer, 1.5*inch, 1.5*inch)
-                qr_table_data[0].append(img_customer)
-                qr_table_data[1].append(Paragraph(rtl("موقع العميل"), styles['QRCodeLabel']))
+                img_customer = Image(qr_img_path_customer, 1.2*inch, 1.2*inch)
 
             # QR for Photo Link
             if photo_link:
                 qr_img_path_photo = "qr_photo.png"
                 qrcode.make(photo_link).save(qr_img_path_photo)
-                img_photo = Image(qr_img_path_photo, 1.5*inch, 1.5*inch)
-                qr_table_data[0].append(img_photo)
-                qr_table_data[1].append(Paragraph(rtl("صورة الطلب"), styles['QRCodeLabel']))
+                img_photo = Image(qr_img_path_photo, 1.2*inch, 1.2*inch)
 
-            qr_table = Table(qr_table_data, colWidths=[1.8*inch]*len(qr_table_data[0]))
-            qr_table.setStyle(TableStyle([
+            # Create a row for QR images
+            qr_images_row = []
+            qr_labels_row = []
+            
+            # Always add market QR
+            qr_images_row.append(img_market)
+            qr_labels_row.append(Paragraph(rtl("موقع المتجر"), styles['QRCodeLabel']))
+            
+            # Add customer QR if available
+            if order_details['customer'].get('location'):
+                qr_images_row.append(img_customer)
+                qr_labels_row.append(Paragraph(rtl("موقع العميل"), styles['QRCodeLabel']))
+
+            # Add photo QR if available
+            if photo_link:
+                qr_images_row.append(img_photo)
+                qr_labels_row.append(Paragraph(rtl("صورة الطلب"), styles['QRCodeLabel']))
+
+            # Add website QR codes
+            qr_data_our_site = f"https://{MARKET_INFO['website']}"
+            qr_img_path_our_site = "qr_our_site.png"
+            qrcode.make(qr_data_our_site).save(qr_img_path_our_site)
+            img_our_site = Image(qr_img_path_our_site, 1.2*inch, 1.2*inch)
+            qr_images_row.append(img_our_site)
+            qr_labels_row.append(Paragraph(rtl("موقعنا"), styles['QRCodeLabel']))
+            
+            # Create tables for QR codes
+            qr_images_table = Table([qr_images_row], colWidths=[1.5*inch]*len(qr_images_row))
+            qr_labels_table = Table([qr_labels_row], colWidths=[1.5*inch]*len(qr_labels_row))
+            
+            # Style the QR tables
+            qr_style = TableStyle([
                 ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('LEFTPADDING', (0,0), (-1,-1), 10),
-                ('RIGHTPADDING', (0,0), (-1,-1), 10)
-            ]))
-            story.append(qr_table)
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('BACKGROUND', (0,0), (-1,-1), COLOR_TABLE_BG1),
+                ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#CCCCCC')),
+                ('PADDING', (0,0), (-1,-1), 10),
+            ])
+            
+            qr_images_table.setStyle(qr_style)
+            qr_labels_table.setStyle(qr_style)
+            
+            story.append(qr_images_table)
+            story.append(Spacer(1, 0.1*inch))
+            story.append(qr_labels_table)
             story.append(Spacer(1, 0.3*inch))
 
         # Customer distance note
@@ -267,14 +325,10 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             distance_text = rtl(f"مسافة العميل من المتجر: {distance:,.2f} متر")
             story.append(Paragraph(distance_text, styles['ValueText']))
 
-        # Footer
-        story.append(Spacer(1, 0.5*inch))
-        story.append(Paragraph(rtl("شكراً لتعاملكم معنا."), styles['FooterText']))
-
         doc.build(story, onFirstPage=page_layout, onLaterPages=page_layout)
         return filename
     finally:
-        for p in [qr_img_path_customer, qr_img_path_market, qr_img_path_photo]:
+        for p in [qr_img_path_customer, qr_img_path_market, qr_img_path_photo, "qr_our_site.png"]:
             if p and os.path.exists(p):
                 os.remove(p)
 
