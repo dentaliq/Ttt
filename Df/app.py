@@ -386,6 +386,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
 # API: إرسال صورة
 @app.route('/send-photo', methods=['POST'])
 def send_photo():
+    temp_path = None
     try:
         if 'photo' not in request.files:
             return jsonify({'status': 'error', 'message': 'لم يتم توفير ملف الصورة.'}), 400
@@ -399,18 +400,19 @@ def send_photo():
         
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         
-        temp_path = f"temp_{photo_file.filename}"
+        # حفظ الصورة مؤقتًا
+        temp_path = os.path.join(os.getcwd(), photo_file.filename)
         photo_file.save(temp_path)
         
         with open(temp_path, 'rb') as f:
-            files = {'photo': f}
+            # هنا يتم بناء قاموس الملفات بشكل صحيح
+            files = {'photo': (photo_file.filename, f, photo_file.content_type)}
             data = {'chat_id': CHAT_ID, 'caption': caption}
             response = requests.post(url, data=data, files=files, timeout=30)
         
-        os.remove(temp_path)
-        
         response.raise_for_status()
         
+        # استخراج file_id للحصول على رابط الصورة
         file_id = response.json()['result']['photo'][-1]['file_id']
         photo_link = get_file_link(file_id)
         
@@ -419,10 +421,14 @@ def send_photo():
 
     except requests.exceptions.RequestException as e:
         print(f"خطأ في إرسال الصورة إلى تيليجرام: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': f"فشل إرسال الصورة إلى تيليجرام: {str(e)}"}), 500
     except Exception as e:
         print(f"خطأ غير متوقع: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': f"حدث خطأ غير متوقع: {str(e)}"}), 500
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+            print(f"تم حذف ملف الصورة المؤقت: {temp_path}")
 
 
 # API: استقبال الطلب
