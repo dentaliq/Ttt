@@ -115,6 +115,11 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         styles.add(ParagraphStyle('ValueText', fontName=ARABIC_FONT, fontSize=12, textColor=colors.HexColor('#6B6E70'), alignment=TA_RIGHT))
         styles.add(ParagraphStyle('TableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.white, alignment=TA_CENTER, leading=15))
         styles.add(ParagraphStyle('TableData', fontName=ARABIC_FONT, fontSize=11, textColor=colors.HexColor('#3C4043'), alignment=TA_CENTER, leading=14))
+        
+        # New/Fixed styles
+        styles.add(ParagraphStyle('SummaryLabel', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=colors.white, alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('SummaryValue', fontName=ARABIC_FONT, fontSize=14, textColor=colors.white, alignment=TA_RIGHT))
+        
         styles.add(ParagraphStyle('TotalLabel', fontName=ARABIC_FONT_BOLD, fontSize=18, textColor=colors.white, alignment=TA_RIGHT))
         styles.add(ParagraphStyle('TotalValue', fontName=ARABIC_FONT_BOLD, fontSize=20, textColor=colors.HexColor('#34B53A'), alignment=TA_RIGHT)) # Green color for total
         styles.add(ParagraphStyle('FooterText', fontName=ARABIC_FONT, fontSize=10, textColor=colors.HexColor('#6B6E70'), alignment=TA_CENTER))
