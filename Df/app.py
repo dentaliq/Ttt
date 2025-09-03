@@ -130,7 +130,7 @@ def page_layout(canvas, doc):
 
 # إنشاء PDF للطلب
 def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
-    qr_img_path_customer, qr_img_path_market, qr_img_path_photo = None, None, None
+    qr_img_path_customer, qr_img_path_market = None, None
     try:
         # Define Color Palette
         COLOR_PRIMARY = colors.HexColor('#3C4043')
@@ -265,53 +265,33 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         story.append(summary_table)
         story.append(Spacer(1, 0.3*inch))
 
-        # QR Codes Section with improved design
-        if order_details['customer'].get('location') or photo_link:
+        # QR Codes Section
+        if order_details['customer'].get('location'):
             story.append(Paragraph(rtl("رموز QR للوصول السريع"), styles['SectionHeader']))
             
-            # Create a container with background for QR codes
-            qr_table_data = []
+            qr_images_row = []
+            qr_labels_row = []
             
             # QR for Market Location
             qr_data_market = f"https://www.google.com/maps/search/?api=1&query={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
             qr_img_path_market = "qr_market.png"
             qrcode.make(qr_data_market).save(qr_img_path_market)
             img_market = Image(qr_img_path_market, 1.2*inch, 1.2*inch)
-            
-            # QR for Customer Location
-            if order_details['customer'].get('location'):
-                lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
-                qr_data_customer = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
-                qr_img_path_customer = "qr_customer.png"
-                qrcode.make(qr_data_customer).save(qr_img_path_customer)
-                img_customer = Image(qr_img_path_customer, 1.2*inch, 1.2*inch)
-
-            # QR for Photo Link
-            if photo_link:
-                qr_img_path_photo = "qr_photo.png"
-                qrcode.make(photo_link).save(qr_img_path_photo)
-                img_photo = Image(qr_img_path_photo, 1.2*inch, 1.2*inch)
-
-            qr_images_row = []
-            qr_labels_row = []
-            
-            # Always add market QR
             qr_images_row.append(img_market)
             qr_labels_row.append(Paragraph(rtl("موقع المتجر"), styles['QRCodeLabel']))
             
-            # Add customer QR if available
-            if order_details['customer'].get('location'):
-                qr_images_row.append(img_customer)
-                qr_labels_row.append(Paragraph(rtl("موقع العميل"), styles['QRCodeLabel']))
-
-            # Add photo QR if available
-            if photo_link:
-                qr_images_row.append(img_photo)
-                qr_labels_row.append(Paragraph(rtl("صورة الطلب"), styles['QRCodeLabel']))
+            # QR for Customer Location
+            lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
+            qr_data_customer = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
+            qr_img_path_customer = "qr_customer.png"
+            qrcode.make(qr_data_customer).save(qr_img_path_customer)
+            img_customer = Image(qr_img_path_customer, 1.2*inch, 1.2*inch)
+            qr_images_row.append(img_customer)
+            qr_labels_row.append(Paragraph(rtl("موقع العميل"), styles['QRCodeLabel']))
             
             # Create tables for QR codes
             qr_images_table = Table([qr_images_row], colWidths=[1.5*inch]*len(qr_images_row))
-            qr_labels_table = Table([qr_images_row], colWidths=[1.5*inch]*len(qr_labels_row)) # Changed from qr_labels_table = Table([qr_labels_row], colWidths=[1.5*inch]*len(qr_labels_row))
+            qr_labels_table = Table([qr_labels_row], colWidths=[1.5*inch]*len(qr_labels_row))
             
             # Style the QR tables
             qr_style = TableStyle([
@@ -340,7 +320,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         doc.build(story, onFirstPage=page_layout, onLaterPages=page_layout)
         return filename
     finally:
-        for p in [qr_img_path_customer, qr_img_path_market, qr_img_path_photo]:
+        for p in [qr_img_path_customer, qr_img_path_market]:
             if p and os.path.exists(p):
                 os.remove(p)
 
@@ -402,3 +382,4 @@ def send_order():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000), debug=True)
+
