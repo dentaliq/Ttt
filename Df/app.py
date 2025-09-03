@@ -12,10 +12,8 @@ from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.graphics.shapes import Drawing, Rect, String
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics.charts.textlabels import Label
 from reportlab.graphics import renderPDF
+from reportlab.lib.colors import ReportlabTransGradColor
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
@@ -132,19 +130,18 @@ class GradientRect(Flowable):
     def draw(self):
         canvas = self.canv
         # Draw the gradient rectangle
-        from reportlab.lib.colors import ReportlabTransGradColor
         grad = ReportlabTransGradColor(self.start_color, self.end_color)
         canvas.setFillColor(grad)
         canvas.roundRect(0, 0, self.width, self.height, 10, fill=1, stroke=0)
         
         # Draw the text on top
-        text_obj = self.canv.beginText(self.width / 2, self.height / 2 - self.style.fontSize/2)
-        text_obj.setFont(self.style.fontName, self.style.fontSize)
-        text_obj.setFillColor(self.style.textColor)
-        text_obj.textOriginMode = 1  # Centered
-        text_obj.textAlignment = TA_CENTER
-        text_obj.textOut(self.text)
-        self.canv.drawText(text_obj)
+        text_width = pdfmetrics.stringWidth(self.text, self.style.fontName, self.style.fontSize)
+        x_pos = (self.width - text_width) / 2
+        y_pos = (self.height - self.style.fontSize) / 2 + self.style.fontSize * 0.2
+        
+        canvas.setFillColor(self.style.textColor)
+        canvas.setFont(self.style.fontName, self.style.fontSize)
+        canvas.drawString(x_pos, y_pos, self.text)
 
 
 def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
@@ -208,7 +205,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'FooterStyle',
             fontName=ARABIC_FONT,
             fontSize=10,
-            textColor=colors.HexColor('#BDC3C7'),
+            textColor=colors.HexColor('#FFFFFF'),
             alignment=TA_CENTER,
         ))
         styles.add(ParagraphStyle(
