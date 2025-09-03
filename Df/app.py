@@ -129,9 +129,11 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         # Define Color Palette
         COLOR_PRIMARY = colors.HexColor('#3C4043')  # Dark Gray
         COLOR_ACCENT = colors.HexColor('#1A73E8')  # Google Blue
+        COLOR_SPECIAL = colors.HexColor('#4CAF50')  # Green for special columns
         COLOR_TEXT_LIGHT = colors.HexColor('#6B6E70')
         COLOR_TABLE_BG1 = colors.HexColor('#F5F7FA')  # Very light blue-gray
         COLOR_TABLE_BG2 = colors.HexColor('#E8EDF3')  # Slightly darker light blue-gray
+        COLOR_SPECIAL_BG = colors.HexColor('#E8F5E9')  # Light green for special columns
         
         # Custom styles
         styles = getSampleStyleSheet()
@@ -142,6 +144,8 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         styles.add(ParagraphStyle('ValueText', fontName=ARABIC_FONT, fontSize=12, textColor=COLOR_TEXT_LIGHT, alignment=TA_RIGHT))
         styles.add(ParagraphStyle('TableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.white, alignment=TA_CENTER, leading=15))
         styles.add(ParagraphStyle('TableData', fontName=ARABIC_FONT, fontSize=11, textColor=COLOR_PRIMARY, alignment=TA_CENTER, leading=14))
+        styles.add(ParagraphStyle('SpecialTableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.white, alignment=TA_CENTER, leading=15))
+        styles.add(ParagraphStyle('SpecialTableData', fontName=ARABIC_FONT_BOLD, fontSize=11, textColor=COLOR_SPECIAL, alignment=TA_CENTER, leading=14))
         
         # New styles for summary
         styles.add(ParagraphStyle('SummaryLabel', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=COLOR_PRIMARY, alignment=TA_RIGHT))
@@ -154,6 +158,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
 
         # A new style to handle right-aligned Arabic text and left-aligned LTR numbers
         styles.add(ParagraphStyle('RightArabic_LeftNumber', fontName=ARABIC_FONT, fontSize=11, textColor=COLOR_PRIMARY, alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('SpecialRightArabic_LeftNumber', fontName=ARABIC_FONT_BOLD, fontSize=11, textColor=COLOR_SPECIAL, alignment=TA_RIGHT))
         
         doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
         story = []
@@ -182,12 +187,12 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         story.append(info_table)
         story.append(Spacer(1, 0.2*inch))
         
-        # Products Section
+        # Products Section - Single table with special styling for quantity and total price
         story.append(Paragraph(rtl("تفاصيل الطلب"), styles['SectionHeader']))
         table_header = [
-            Paragraph(rtl("السعر الإجمالي"), styles['TableHeader']),
+            Paragraph(rtl("السعر الإجمالي"), styles['SpecialTableHeader']),
             Paragraph(rtl("السعر"), styles['TableHeader']),
-            Paragraph(rtl("الكمية"), styles['TableHeader']),
+            Paragraph(rtl("الكمية"), styles['SpecialTableHeader']),
             Paragraph(rtl("المنتج"), styles['TableHeader'])
         ]
         products_data = [table_header]
@@ -198,29 +203,42 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             total_price += item_total
             total_qty += item_data['quantity']
             
-            # Apply background color to alternate rows
-            bg_color = COLOR_TABLE_BG1 if i % 2 == 0 else COLOR_TABLE_BG2
-            
+            # Apply different styling for special columns (quantity and total price)
             products_data.append([
-                Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['RightArabic_LeftNumber']),
+                Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['SpecialRightArabic_LeftNumber']),
                 Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['RightArabic_LeftNumber']),
-                Paragraph(rtl(str(item_data['quantity'])), styles['RightArabic_LeftNumber']),
+                Paragraph(rtl(str(item_data['quantity'])), styles['SpecialRightArabic_LeftNumber']),
                 Paragraph(rtl(item_name), styles['TableData'])
             ])
         
         products_table = Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch])
         products_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), COLOR_PRIMARY),
-            ('BACKGROUND', (0, 1), (-1, -1), COLOR_TABLE_BG2),
-            ('GRID', (0, 1), (-1, -1), 0.5, colors.HexColor('#BBBBBB')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#AAAAAA')),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            # Apply alternating row colors
+            # Header row styling
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_SPECIAL),  # Total price header
+            ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),  # Price header
+            ('BACKGROUND', (2, 0), (2, 0), COLOR_SPECIAL),  # Quantity header
+            ('BACKGROUND', (3, 0), (3, 0), COLOR_PRIMARY),  # Product header
+            
+            # Data rows styling - alternating colors
+            ('BACKGROUND', (0, 1), (0, -1), COLOR_SPECIAL_BG),  # Total price column
+            ('BACKGROUND', (1, 1), (1, -1), COLOR_TABLE_BG1),   # Price column
+            ('BACKGROUND', (2, 1), (2, -1), COLOR_SPECIAL_BG),  # Quantity column
+            ('BACKGROUND', (3, 1), (3, -1), COLOR_TABLE_BG1),   # Product column
+            
+            # Apply alternating row colors for better readability
             ('BACKGROUND', (0, 1), (-1, 1), COLOR_TABLE_BG1),
             ('BACKGROUND', (0, 3), (-1, 3), COLOR_TABLE_BG1),
             ('BACKGROUND', (0, 5), (-1, 5), COLOR_TABLE_BG1),
+            
+            # Grid and borders
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#DDDDDD')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#AAAAAA')),
+            
+            # Alignment and padding
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
         ]))
         story.append(products_table)
         story.append(Spacer(1, 0.3*inch))
