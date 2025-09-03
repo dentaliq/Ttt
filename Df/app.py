@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -109,24 +109,21 @@ def page_layout(canvas, doc):
     canvas.setFillColor(colors.HexColor('#3C4043'))
     canvas.rect(0, doc.height + doc.topMargin - header_height, doc.width + 2*doc.leftMargin, header_height, fill=1, stroke=0)
     
-    # Add brand name and welcome message
-    brand_name = rtl(f"{MARKET_INFO['name']}")
-    welcome_text = rtl("أهلاً وسهلاً بكم")
+    # Add market name to the header
+    market_name = rtl(MARKET_INFO['name'])
     canvas.setFillColor(colors.white)
-    canvas.setFont(ARABIC_FONT_BOLD, 20)
-    canvas.drawRightString(doc.width + doc.leftMargin - 15, doc.height + doc.topMargin - 0.7*inch, brand_name)
-    canvas.setFont(ARABIC_FONT, 14)
-    canvas.drawRightString(doc.width + doc.leftMargin - 15, doc.height + doc.topMargin - 0.9*inch, welcome_text)
+    canvas.setFont(ARABIC_FONT_BOLD, 28)
+    canvas.drawCentredString(doc.width/2 + doc.leftMargin, doc.height + doc.topMargin - 0.7*inch, market_name)
 
     # Footer Rectangle
     footer_height = 0.5 * inch
     canvas.setFillColor(colors.HexColor('#3C4043'))
     canvas.rect(0, 0, doc.width + 2*doc.leftMargin, footer_height, fill=1, stroke=0)
     
-    # Footer Text
+    # Footer Text (with website removed)
     canvas.setFillColor(colors.white)
     canvas.setFont(ARABIC_FONT, 10)
-    footer_text = rtl(f"{MARKET_INFO['name']} - {MARKET_INFO['website']} - {MARKET_INFO['phone']}")
+    footer_text = rtl(f"{MARKET_INFO['name']} - {MARKET_INFO['phone']}")
     canvas.drawCentredString(doc.width/2 + doc.leftMargin, 0.2*inch, footer_text)
     
     canvas.restoreState()
@@ -171,12 +168,6 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
         story = []
 
-        # Header Title
-        story.append(Spacer(1, 0.7*inch))
-        story.append(Paragraph(rtl("فاتورة طلب"), styles['InvoiceTitle']))
-        story.append(Paragraph(rtl(f"التاريخ: {datetime.now().strftime('%Y-%m-%d')}"), styles['InvoiceSubtitle']))
-        story.append(Spacer(1, 0.5*inch))
-        
         # Customer and Order Details Section with light background
         story.append(Paragraph(rtl("بيانات العميل"), styles['SectionHeader']))
         customer_info_data = [
@@ -278,12 +269,6 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
                 qrcode.make(photo_link).save(qr_img_path_photo)
                 img_photo = Image(qr_img_path_photo, 1.2*inch, 1.2*inch)
 
-            # Add website QR codes
-            qr_data_our_site = f"https://{MARKET_INFO['website']}"
-            qr_img_path_our_site = "qr_our_site.png"
-            qrcode.make(qr_data_our_site).save(qr_img_path_our_site)
-            img_our_site = Image(qr_img_path_our_site, 1.2*inch, 1.2*inch)
-
             qr_images_row = []
             qr_labels_row = []
             
@@ -300,10 +285,6 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             if photo_link:
                 qr_images_row.append(img_photo)
                 qr_labels_row.append(Paragraph(rtl("صورة الطلب"), styles['QRCodeLabel']))
-
-            # Add website QR
-            qr_images_row.append(img_our_site)
-            qr_labels_row.append(Paragraph(rtl("موقعنا"), styles['QRCodeLabel']))
             
             # Create tables for QR codes
             qr_images_table = Table([qr_images_row], colWidths=[1.5*inch]*len(qr_images_row))
@@ -336,7 +317,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         doc.build(story, onFirstPage=page_layout, onLaterPages=page_layout)
         return filename
     finally:
-        for p in [qr_img_path_customer, qr_img_path_market, qr_img_path_photo, "qr_our_site.png"]:
+        for p in [qr_img_path_customer, qr_img_path_market, qr_img_path_photo]:
             if p and os.path.exists(p):
                 os.remove(p)
 
