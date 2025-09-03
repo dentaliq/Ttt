@@ -24,7 +24,7 @@ app = Flask(__name__)
 CORS(app)
 
 # بيانات بوت تيليجرام
-BOT_TOKEN = '8256210377:AAH7ogEPTvIUo9hyY2p8uCkF-Yby13weXkk'
+BOT_TOKEN = '8256210377:AAH7ogEPTvIUo9hyY2p8uCkF-Yby13weKk'
 CHAT_ID = '7836619198'
 
 # موقع المتجر الفعلي (تم تحديثه)
@@ -139,8 +139,8 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             fontSize=16,
             textColor=colors.HexColor('#FFFFFF'),
             alignment=TA_RIGHT,
-            spaceAfter=10,
-            spaceBefore=10,
+            spaceAfter=5,
+            spaceBefore=5,
         ))
         styles.add(ParagraphStyle(
             'LabelText',
@@ -156,7 +156,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             fontSize=12,
             textColor=colors.HexColor('#34495E'),
             alignment=TA_RIGHT,
-            spaceAfter=15,
+            spaceAfter=5,
         ))
         styles.add(ParagraphStyle(
             'TableHeader',
@@ -195,63 +195,15 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             alignment=TA_CENTER,
             spaceAfter=5,
         ))
-
-        # رأس الفاتورة
-        header_table = Table([
-            [Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle'])]
-        ], colWidths=[doc.width])
-        header_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2C3E50')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#34495E')),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 0.3 * inch))
-
-        # معلومات العميل
-        customer_card = Table([
-            [Paragraph(rtl("👤 معلومات العميل"), styles['SectionHeader'])]
-        ], colWidths=[doc.width])
-        customer_card.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#3498DB')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#2980B9')),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(customer_card)
         
+        # بيانات الفاتورة
         info_data = [
             [Paragraph(rtl("<b>الاسم:</b>"), styles['LabelText']), Paragraph(rtl(order_details['customer']['name']), styles['ValueText'])],
             [Paragraph(rtl("<b>الهاتف:</b>"), styles['LabelText']), Paragraph(rtl(order_details['customer']['phone']), styles['ValueText'])],
             [Paragraph(rtl("<b>تاريخ الطلب:</b>"), styles['LabelText']), Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])],
         ]
         
-        info_table = Table(info_data, colWidths=[1.5*inch, 5.5*inch])
-        info_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8F9F9')),
-            ('BACKGROUND', (0,1), (-1,1), colors.HexColor('#EAF2F8')),
-            ('BACKGROUND', (0,2), (-1,2), colors.HexColor('#F8F9F9')),
-            ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#D5D8DC')),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BDC3C7')),
-        ]))
-        story.append(info_table)
-        story.append(Spacer(1, 0.3 * inch))
-
-        # جدول المنتجات
-        products_header = Table([
-            [Paragraph(rtl("🛒 تفاصيل المنتجات"), styles['SectionHeader'])]
-        ], colWidths=[doc.width])
-        products_header.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2ECC71')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#27AE60')),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(products_header)
-        
+        # بيانات جدول المنتجات
         table_header = [
             Paragraph(rtl("السعر الإجمالي"), styles['TableHeader']),
             Paragraph(rtl("السعر"), styles['TableHeader']),
@@ -259,7 +211,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             Paragraph(rtl("المنتج"), styles['TableHeader'])
         ]
         
-        table_data = [table_header]
+        products_data = [table_header]
         total_price_num = 0
         items_count = 0
 
@@ -268,7 +220,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             total_price_num += item_total
             items_count += item_data['quantity']
             
-            table_data.append([
+            products_data.append([
                 Paragraph(rtl(f"{item_total:,.0f} د.ع"), styles['TableData']),
                 Paragraph(rtl(f"{item_data['price']:,.0f} د.ع"), styles['TableData']),
                 Paragraph(rtl(str(item_data['quantity'])), styles['TableData']),
@@ -282,74 +234,10 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             Paragraph(rtl("الإجمالي"), styles['TableHeader'])
         ]
         
-        table_data.append(summary_row_data)
+        products_data.append(summary_row_data)
 
-        table_style = TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
-            ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#16A085')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#FFFFFF')),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E74C3C')),
-            ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#FFFFFF')),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('TOPPADDING', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, -1), (-1, -1), 10),
-            ('TOPPADDING', (0, -1), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#BDC3C7')),
-            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#2C3E50')),
-        ])
-        
-        order_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 2.5*inch])
-        order_table.setStyle(table_style)
-        story.append(order_table)
-        story.append(Spacer(1, 0.3 * inch))
-
-        # قسم ملخص الطلب
-        summary_card = Table([
-            [Paragraph(rtl("📊 ملخص الطلب"), styles['SectionHeader'])]
-        ], colWidths=[doc.width])
-        summary_card.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#9B59B6')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#8E44AD')),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(summary_card)
-        
-        summary_data = [
-            [Paragraph(rtl("عدد المنتجات:"), styles['SummaryText']), Paragraph(rtl(str(items_count)), styles['SummaryText'])],
-            [Paragraph(rtl("المجموع الإجمالي:"), styles['SummaryText']), Paragraph(rtl(f"{total_price_num:,.0f} د.ع"), styles['SummaryText'])]
-        ]
-        
-        summary_table = Table(summary_data, colWidths=[3.5*inch, 3.5*inch])
-        summary_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8F9F9')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#D5D8DC')),
-            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#2C3E50')),
-        ]))
-        story.append(summary_table)
-        story.append(Spacer(1, 0.4 * inch))
-
-        # باركودات الموقع
-        locations_card = Table([
-            [Paragraph(rtl("📍 مواقع مهمة"), styles['SectionHeader'])]
-        ], colWidths=[doc.width])
-        locations_card.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F39C12')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#D68910')),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(locations_card)
-        story.append(Spacer(1, 0.2 * inch))
-        
+        # تجهيز الباركودات
         qr_table_data = [[],[]]
-        
-        # باركود موقع المتجر
         qr_data_market = f"https://www.google.com/maps/search/?api=1&query={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
         qr_img_market = qrcode.make(qr_data_market)
         qr_img_path_market = "qr_market.png"
@@ -360,7 +248,6 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         qr_table_data[0].append(market_image)
         qr_table_data[1].append(Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel']))
         
-        # باركود موقع العميل
         if order_details['customer']['location']:
             lat = order_details['customer']['location']['lat']
             lng = order_details['customer']['location']['lng']
@@ -373,63 +260,111 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             customer_image.drawWidth = 1.5 * inch
             qr_table_data[0].append(customer_image)
             qr_table_data[1].append(Paragraph(rtl("امسح لموقع العميل"), styles['QRCodeLabel']))
-            
-            # حساب المسافة وإضافتها
-            distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            distance_text = Paragraph(rtl(f"<b>المسافة بين المتجر والعميل:</b> {distance:,.2f} متر"), styles['LabelText'])
-            story.append(distance_text)
-            story.append(Spacer(1, 0.2 * inch))
-        else:
-            no_location = Paragraph(rtl("<b>ملاحظة:</b> لم يتم توفير موقع العميل."), styles['LabelText'])
-            story.append(no_location)
-            story.append(Spacer(1, 0.2 * inch))
         
-        # باركود الصورة المرفقة
         if photo_link:
-            photo_card = Table([
-                [Paragraph(rtl("🖼️ الصورة المرفقة"), styles['SectionHeader'])]
-            ], colWidths=[doc.width])
-            photo_card.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#E74C3C')),
-                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#CB4335')),
-                ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-                ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-            ]))
-            story.append(photo_card)
-            story.append(Spacer(1, 0.2 * inch))
-
             qr_img_photo = qrcode.make(photo_link)
             qr_img_path_photo = "qr_photo.png"
             qr_img_photo.save(qr_img_path_photo)
-            
             photo_image_qr = Image(qr_img_path_photo)
             photo_image_qr.drawHeight = 1.5 * inch
             photo_image_qr.drawWidth = 1.5 * inch
-
             qr_table_data[0].append(photo_image_qr)
             qr_table_data[1].append(Paragraph(rtl("امسح لرؤية الصورة"), styles['QRCodeLabel']))
-            
-        # إنشاء الجدول للباركودات
+        
+        # بناء جدول الباركودات
         qr_table = Table(qr_table_data, colWidths=[2*inch] * len(qr_table_data[0]), hAlign='CENTER')
         qr_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8F9F9')),
         ]))
         
-        story.append(qr_table)
-        story.append(Spacer(1, 0.5 * inch))
-
-        # تذييل الفاتورة
-        footer = Table([
-            [Paragraph(rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), styles['FooterStyle'])]
-        ], colWidths=[doc.width])
-        footer.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2C3E50')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#1B2631')),
+        # إنشاء الجدول الرئيسي
+        main_table_data = [
+            # رأس الفاتورة
+            [Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle'])],
+            # معلومات العميل
+            [Paragraph(rtl("👤 معلومات العميل"), styles['SectionHeader'])],
+            [Table(info_data, colWidths=[1.5*inch, doc.width-1.5*inch-2])],
+            # تفاصيل المنتجات
+            [Paragraph(rtl("🛒 تفاصيل المنتجات"), styles['SectionHeader'])],
+            [Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch])],
+            # ملخص الطلب
+            [Paragraph(rtl("📊 ملخص الطلب"), styles['SectionHeader'])],
+            [Table(summary_data, colWidths=[doc.width/2, doc.width/2])],
+            # مواقع مهمة
+            [Paragraph(rtl("📍 مواقع مهمة"), styles['SectionHeader'])],
+            [qr_table],
+            # التذييل
+            [Paragraph(rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), styles['FooterStyle'])],
+        ]
+        
+        # تنسيق الجدول الرئيسي
+        main_table = Table(main_table_data, colWidths=[doc.width], hAlign='CENTER')
+        
+        main_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#2C3E50')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            
+            # رأس الفاتورة
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#2C3E50')),
+            ('TOPPADDING', (0, 0), (0, 0), 15),
+            ('BOTTOMPADDING', (0, 0), (0, 0), 15),
+
+            # معلومات العميل
+            ('BACKGROUND', (0, 1), (0, 1), colors.HexColor('#3498DB')),
+            ('ALIGN', (0, 1), (0, 1), 'RIGHT'),
+            ('TOPPADDING', (0, 1), (0, 1), 10),
+            ('BOTTOMPADDING', (0, 1), (0, 1), 10),
+
+            # جدول معلومات العميل
+            ('BACKGROUND', (0, 2), (0, 2), colors.HexColor('#F8F9F9')),
+            ('TOPPADDING', (0, 2), (0, 2), 10),
+            ('BOTTOMPADDING', (0, 2), (0, 2), 10),
+
+            # تفاصيل المنتجات
+            ('BACKGROUND', (0, 3), (0, 3), colors.HexColor('#2ECC71')),
+            ('ALIGN', (0, 3), (0, 3), 'RIGHT'),
+            ('TOPPADDING', (0, 3), (0, 3), 10),
+            ('BOTTOMPADDING', (0, 3), (0, 3), 10),
+            
+            # جدول المنتجات
+            ('BACKGROUND', (0, 4), (0, 4), colors.HexColor('#FFFFFF')),
+            ('TOPPADDING', (0, 4), (0, 4), 10),
+            ('BOTTOMPADDING', (0, 4), (0, 4), 10),
+
+            # ملخص الطلب
+            ('BACKGROUND', (0, 5), (0, 5), colors.HexColor('#9B59B6')),
+            ('ALIGN', (0, 5), (0, 5), 'RIGHT'),
+            ('TOPPADDING', (0, 5), (0, 5), 10),
+            ('BOTTOMPADDING', (0, 5), (0, 5), 10),
+            
+            # جدول الملخص
+            ('BACKGROUND', (0, 6), (0, 6), colors.HexColor('#F8F9F9')),
+            ('TOPPADDING', (0, 6), (0, 6), 10),
+            ('BOTTOMPADDING', (0, 6), (0, 6), 10),
+            
+            # مواقع مهمة
+            ('BACKGROUND', (0, 7), (0, 7), colors.HexColor('#F39C12')),
+            ('ALIGN', (0, 7), (0, 7), 'RIGHT'),
+            ('TOPPADDING', (0, 7), (0, 7), 10),
+            ('BOTTOMPADDING', (0, 7), (0, 7), 10),
+
+            # جدول الباركودات
+            ('BACKGROUND', (0, 8), (0, 8), colors.HexColor('#FFFFFF')),
+            ('TOPPADDING', (0, 8), (0, 8), 10),
+            ('BOTTOMPADDING', (0, 8), (0, 8), 10),
+            
+            # التذييل
+            ('BACKGROUND', (0, 9), (0, 9), colors.HexColor('#2C3E50')),
+            ('TOPPADDING', (0, 9), (0, 9), 15),
+            ('BOTTOMPADDING', (0, 9), (0, 9), 15),
         ]))
-        story.append(footer)
+
+        story.append(main_table)
+        story.append(Spacer(1, 0.2 * inch))
 
         doc.build(story)
         print(f"تم إنشاء ملف PDF بنجاح: {filename}")
