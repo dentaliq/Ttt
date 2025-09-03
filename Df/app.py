@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Frame, PageTemplate
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -13,7 +13,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -97,18 +97,9 @@ def get_file_link(file_id):
 # دالة لرسم خلفية الصفحة
 def page_background(canvas, doc):
     canvas.saveState()
-    # Gradient background
-    p1 = (0, 0)
-    p2 = (doc.width + 2 * doc.leftMargin, doc.height + 2 * doc.topMargin)
-    canvas.setFillColorRGB(0.9, 0.95, 1)
-    canvas.rect(p1[0], p1[1], p2[0], p2[1], fill=1)
-    canvas.linearGradient(0, 0, p2[0], p2[1], (colors.HexColor('#F5F7FA'), colors.HexColor('#C3CFE2')))
-    # Top bar
-    canvas.setFillColor(colors.HexColor('#1E3D59'))
-    canvas.rect(0, doc.height + doc.topMargin + doc.bottomMargin - 50, doc.width + 2 * doc.leftMargin, 50, fill=1)
-    # Bottom bar
-    canvas.setFillColor(colors.HexColor('#1E3D59'))
-    canvas.rect(0, 0, doc.width + 2 * doc.leftMargin, 20, fill=1)
+    # Solid white background
+    canvas.setFillColor(colors.white)
+    canvas.rect(0, 0, doc.width + 2 * doc.leftMargin, doc.height + 2 * doc.topMargin, fill=1, stroke=0)
     canvas.restoreState()
 
 # إنشاء PDF للطلب
@@ -117,24 +108,27 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     try:
         # Custom styles with better aesthetics
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle('InvoiceTitle', fontName=ARABIC_FONT_BOLD, fontSize=28, textColor=colors.HexColor('#FFFFFF'), alignment=TA_CENTER, leading=30))
-        styles.add(ParagraphStyle('SectionHeader', fontName=ARABIC_FONT_BOLD, fontSize=16, textColor=colors.HexColor('#1E3D59'), alignment=TA_RIGHT, spaceBefore=10, spaceAfter=5))
+        styles.add(ParagraphStyle('InvoiceTitle', fontName=ARABIC_FONT_BOLD, fontSize=24, textColor=colors.HexColor('#000000'), alignment=TA_CENTER, leading=30))
+        styles.add(ParagraphStyle('InvoiceNumber', fontName=ARABIC_FONT, fontSize=12, alignment=TA_CENTER, textColor=colors.HexColor('#6B6E70')))
+        styles.add(ParagraphStyle('SectionHeader', fontName=ARABIC_FONT_BOLD, fontSize=16, textColor=colors.HexColor('#3C4043'), alignment=TA_RIGHT, spaceBefore=10, spaceAfter=5))
         styles.add(ParagraphStyle('LabelText', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.HexColor('#3C4043'), alignment=TA_RIGHT))
         styles.add(ParagraphStyle('ValueText', fontName=ARABIC_FONT, fontSize=12, textColor=colors.HexColor('#6B6E70'), alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('TableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.HexColor('#FFFFFF'), alignment=TA_CENTER, leading=15))
+        styles.add(ParagraphStyle('TableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.white, alignment=TA_CENTER, leading=15))
         styles.add(ParagraphStyle('TableData', fontName=ARABIC_FONT, fontSize=11, textColor=colors.HexColor('#3C4043'), alignment=TA_CENTER, leading=14))
-        styles.add(ParagraphStyle('SummaryLabel', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=colors.HexColor('#1E3D59'), alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('SummaryValue', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=colors.HexColor('#C1292E'), alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('TotalValue', fontName=ARABIC_FONT_BOLD, fontSize=18, textColor=colors.HexColor('#C1292E'), alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('TotalLabel', fontName=ARABIC_FONT_BOLD, fontSize=18, textColor=colors.white, alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('TotalValue', fontName=ARABIC_FONT_BOLD, fontSize=20, textColor=colors.HexColor('#34B53A'), alignment=TA_RIGHT)) # Green color for total
+        styles.add(ParagraphStyle('FooterText', fontName=ARABIC_FONT, fontSize=10, textColor=colors.HexColor('#6B6E70'), alignment=TA_CENTER))
         styles.add(ParagraphStyle('QRCodeLabel', fontName=ARABIC_FONT_BOLD, fontSize=10, textColor=colors.HexColor('#1E3D59'), alignment=TA_CENTER))
-        
-        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+
+        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
         story = []
 
         # Header for the PDF
         story.append(Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle']))
+        invoice_date_text = rtl(f"رقم الفاتورة: {order_details.get('invoice_id', 'N/A')} | التاريخ: {datetime.now().strftime('%Y-%m-%d')}")
+        story.append(Paragraph(invoice_date_text, styles['InvoiceNumber']))
         story.append(Spacer(1, 0.4*inch))
-
+        
         # Customer and Order Details Section
         customer_info_data = [
             [
@@ -144,19 +138,14 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             [
                 Paragraph(rtl("الهاتف:"), styles['LabelText']),
                 Paragraph(rtl(order_details['customer']['phone']), styles['ValueText'])
-            ],
-            [
-                Paragraph(rtl("تاريخ الطلب:"), styles['LabelText']),
-                Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])
             ]
         ]
         
-        # Adding a frame or box around customer details
         info_table = Table(customer_info_data, colWidths=[1.5*inch, doc.width-1.5*inch])
         info_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFEFEF')),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#CCCCCC')),
-            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor('#CCCCCC')),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8F8F8')), # Pale background
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#DDDDDD')), # Light border
+            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#DDDDDD')),
             ('LEFTPADDING', (0,0), (-1,-1), 10),
             ('RIGHTPADDING', (0,0), (-1,-1), 10),
             ('TOPPADDING', (0,0), (-1,-1), 8),
@@ -174,7 +163,9 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         ]
         products_data = [table_header]
         total_price, total_qty = 0, 0
-        for item_name, item_data in order_details['items'].items():
+        
+        row_colors = [colors.white, colors.HexColor('#F8F8F8')] # Alternating row colors
+        for i, (item_name, item_data) in enumerate(order_details['items'].items()):
             item_total = item_data['price'] * item_data['quantity']
             total_price += item_total
             total_qty += item_data['quantity']
@@ -185,38 +176,40 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
                 Paragraph(rtl(item_name), styles['TableData'])
             ])
         
-        products_table = Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch], repeatRows=1)
+        products_table = Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch])
         products_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4B77A8')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4B77A8')), # Dark blue header
+            ('GRID', (0, 1), (-1, -1), 0.5, colors.HexColor('#DDDDDD')), # Light grid lines
             ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#AAAAAA')),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8)
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('BACKGROUNDS', (0, 1), (-1, -1), row_colors) # Alternating backgrounds
         ]))
         story.append(products_table)
         story.append(Spacer(1, 0.3*inch))
 
-        # Summary and QR codes section
-        summary_data = [
+        # Total Box
+        total_data = [
             [
-                Paragraph(rtl("المجموع الكلي"), styles['SummaryLabel']),
+                Paragraph(rtl("المجموع الكلي"), styles['TotalLabel']),
                 Paragraph(rtl(f"{total_price:,.0f} د.ع"), styles['TotalValue'])
-            ],
-            [
-                Paragraph(rtl("عدد المنتجات"), styles['SummaryLabel']),
-                Paragraph(rtl(str(total_qty)), styles['SummaryValue'])
             ]
         ]
-        summary_table = Table(summary_data, colWidths=[doc.width/2, doc.width/2])
-        summary_table.setStyle(TableStyle([
-            ('LEFTPADDING', (0,0), (-1,-1), 10),
-            ('RIGHTPADDING', (0,0), (-1,-1), 10),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        total_table = Table(total_data, colWidths=[doc.width/2, doc.width/2])
+        total_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#2C3E50')), # Navy blue background
+            ('LEFTPADDING', (0,0), (-1,-1), 15),
+            ('RIGHTPADDING', (0,0), (-1,-1), 15),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
         ]))
-        story.append(summary_table)
+        story.append(total_table)
         story.append(Spacer(1, 0.4*inch))
+
+        # Notes section
+        story.append(Paragraph(rtl("شكراً لتعاملكم معنا."), styles['FooterText']))
+        story.append(Spacer(1, 0.2*inch))
 
         # QR Codes
         qr_table_data = [[], []]
@@ -297,6 +290,9 @@ def send_photo():
 def send_order():
     try:
         order_details = request.get_json()
+        # You can add an invoice ID here if your system generates one
+        order_details['invoice_id'] = f"{order_details['customer']['phone']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
         text_message = f"<b>✅ طلب جديد:</b>\n\n<b>- الاسم:</b> {order_details['customer']['name']}\n<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
         if order_details['customer'].get('location'):
             lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
