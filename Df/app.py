@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Frame
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -106,9 +106,18 @@ def page_layout(canvas, doc):
     canvas.saveState()
     # Header Rectangle
     header_height = 1.0 * inch
-    canvas.setFillColor(colors.HexColor('#3C4043'))  # Dark Gray
+    canvas.setFillColor(colors.HexColor('#3C4043'))
     canvas.rect(0, doc.height + doc.topMargin - header_height, doc.width + 2*doc.leftMargin, header_height, fill=1, stroke=0)
     
+    # Add brand name and welcome message
+    brand_name = rtl(f"{MARKET_INFO['name']}")
+    welcome_text = rtl("أهلاً وسهلاً بكم")
+    canvas.setFillColor(colors.white)
+    canvas.setFont(ARABIC_FONT_BOLD, 20)
+    canvas.drawRightString(doc.width + doc.leftMargin - 15, doc.height + doc.topMargin - 0.7*inch, brand_name)
+    canvas.setFont(ARABIC_FONT, 14)
+    canvas.drawRightString(doc.width + doc.leftMargin - 15, doc.height + doc.topMargin - 0.9*inch, welcome_text)
+
     # Footer Rectangle
     footer_height = 0.5 * inch
     canvas.setFillColor(colors.HexColor('#3C4043'))
@@ -127,13 +136,12 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     qr_img_path_customer, qr_img_path_market, qr_img_path_photo = None, None, None
     try:
         # Define Color Palette
-        COLOR_PRIMARY = colors.HexColor('#3C4043')  # Dark Gray
-        COLOR_ACCENT = colors.HexColor('#1A73E8')  # Google Blue
-        COLOR_SPECIAL = colors.HexColor('#4CAF50')  # Green for special columns
+        COLOR_PRIMARY = colors.HexColor('#3C4043')
+        COLOR_ACCENT = colors.HexColor('#1A73E8')
+        COLOR_SPECIAL = colors.HexColor('#4CAF50')
         COLOR_TEXT_LIGHT = colors.HexColor('#6B6E70')
-        COLOR_TABLE_BG1 = colors.HexColor('#F5F7FA')  # Very light blue-gray
-        COLOR_TABLE_BG2 = colors.HexColor('#E8EDF3')  # Slightly darker light blue-gray
-        COLOR_SPECIAL_BG = colors.HexColor('#E8F5E9')  # Light green for special columns
+        COLOR_TABLE_BG1 = colors.HexColor('#F5F7FA')
+        COLOR_SPECIAL_BG = colors.HexColor('#E8F5E9')
         
         # Custom styles
         styles = getSampleStyleSheet()
@@ -214,16 +222,16 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         products_table = Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch])
         products_table.setStyle(TableStyle([
             # Header row styling
-            ('BACKGROUND', (0, 0), (0, 0), COLOR_SPECIAL),  # Total price header
-            ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),  # Price header
-            ('BACKGROUND', (2, 0), (2, 0), COLOR_SPECIAL),  # Quantity header
-            ('BACKGROUND', (3, 0), (3, 0), COLOR_PRIMARY),  # Product header
+            ('BACKGROUND', (0, 0), (0, 0), COLOR_SPECIAL),
+            ('BACKGROUND', (1, 0), (1, 0), COLOR_PRIMARY),
+            ('BACKGROUND', (2, 0), (2, 0), COLOR_SPECIAL),
+            ('BACKGROUND', (3, 0), (3, 0), COLOR_PRIMARY),
             
             # Data rows styling - alternating colors
-            ('BACKGROUND', (0, 1), (0, -1), COLOR_SPECIAL_BG),  # Total price column
-            ('BACKGROUND', (1, 1), (1, -1), COLOR_TABLE_BG1),   # Price column
-            ('BACKGROUND', (2, 1), (2, -1), COLOR_SPECIAL_BG),  # Quantity column
-            ('BACKGROUND', (3, 1), (3, -1), COLOR_TABLE_BG1),   # Product column
+            ('BACKGROUND', (0, 1), (0, -1), COLOR_SPECIAL_BG),
+            ('BACKGROUND', (1, 1), (1, -1), COLOR_TABLE_BG1),
+            ('BACKGROUND', (2, 1), (2, -1), COLOR_SPECIAL_BG),
+            ('BACKGROUND', (3, 1), (3, -1), COLOR_TABLE_BG1),
             
             # Apply alternating row colors for better readability
             ('BACKGROUND', (0, 1), (-1, 1), COLOR_TABLE_BG1),
@@ -242,25 +250,6 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         ]))
         story.append(products_table)
         story.append(Spacer(1, 0.3*inch))
-
-        # Order Summary Section
-        story.append(Paragraph(rtl("ملخص الطلب"), styles['SectionHeader']))
-        summary_data = [
-            [Paragraph(rtl("عدد المنتجات الإجمالي:"), styles['SummaryLabel']), Paragraph(rtl(str(total_qty)), styles['SummaryValue'])],
-            [Paragraph(rtl("المجموع الكلي:"), styles['TotalLabel']), Paragraph(rtl(f"{total_price:,.0f} د.ع"), styles['TotalValue'])]
-        ]
-        summary_table = Table(summary_data, colWidths=[3.5*inch, doc.width-3.5*inch])
-        summary_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), COLOR_TABLE_BG1),
-            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#CCCCCC')),
-            ('LEFTPADDING', (0,0), (-1,-1), 15),
-            ('RIGHTPADDING', (0,0), (-1,-1), 15),
-            ('TOPPADDING', (0,0), (-1,-1), 10),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ]))
-        story.append(summary_table)
-        story.append(Spacer(1, 0.4*inch))
 
         # QR Codes Section with improved design
         if order_details['customer'].get('location') or photo_link:
@@ -289,7 +278,12 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
                 qrcode.make(photo_link).save(qr_img_path_photo)
                 img_photo = Image(qr_img_path_photo, 1.2*inch, 1.2*inch)
 
-            # Create a row for QR images
+            # Add website QR codes
+            qr_data_our_site = f"https://{MARKET_INFO['website']}"
+            qr_img_path_our_site = "qr_our_site.png"
+            qrcode.make(qr_data_our_site).save(qr_img_path_our_site)
+            img_our_site = Image(qr_img_path_our_site, 1.2*inch, 1.2*inch)
+
             qr_images_row = []
             qr_labels_row = []
             
@@ -307,11 +301,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
                 qr_images_row.append(img_photo)
                 qr_labels_row.append(Paragraph(rtl("صورة الطلب"), styles['QRCodeLabel']))
 
-            # Add website QR codes
-            qr_data_our_site = f"https://{MARKET_INFO['website']}"
-            qr_img_path_our_site = "qr_our_site.png"
-            qrcode.make(qr_data_our_site).save(qr_img_path_our_site)
-            img_our_site = Image(qr_img_path_our_site, 1.2*inch, 1.2*inch)
+            # Add website QR
             qr_images_row.append(img_our_site)
             qr_labels_row.append(Paragraph(rtl("موقعنا"), styles['QRCodeLabel']))
             
