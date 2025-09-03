@@ -37,11 +37,13 @@ MARKET_INFO = {
 
 # تسجيل خطوط عربية
 try:
+    # يجب أن تكون هذه الملفات موجودة في نفس مجلد الكود
     pdfmetrics.registerFont(TTFont('Janna-LT-Regular', 'alfont_com_Janna-LT-Regular.ttf'))
     pdfmetrics.registerFont(TTFont('Janna-LT-Bold', 'alfont_com_Janna-LT-Bold.ttf'))
     ARABIC_FONT = 'Janna-LT-Regular'
     ARABIC_FONT_BOLD = 'Janna-LT-Bold'
-except Exception:
+except Exception as e:
+    print(f"Error loading Arabic fonts: {e}. Falling back to Helvetica.")
     ARABIC_FONT = 'Helvetica'
     ARABIC_FONT_BOLD = 'Helvetica-Bold'
 
@@ -75,19 +77,23 @@ def send_telegram_message(text, chat_id=CHAT_ID):
 # إرسال ملف PDF
 def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
     if not os.path.exists(file_path):
+        print(f"الملف غير موجود: {file_path}")
         return None
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
+    response = None
     try:
         with open(file_path, 'rb') as f:
             files = {'document': f}
             payload = {'chat_id': chat_id, 'caption': caption}
             response = requests.post(url, data=payload, files=files, timeout=30)
             response.raise_for_status()
-        os.remove(file_path)
-        return response
     except Exception as e:
         print(f"خطأ إرسال PDF: {e}")
-        return None
+    finally:
+        # تأكد من حذف الملف بعد الإرسال أو عند حدوث خطأ
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    return response
 
 # الحصول على رابط ملف من تيليجرام
 def get_file_link(file_id):
@@ -357,11 +363,15 @@ def send_photo():
 def send_order():
     try:
         order_details = request.get_json()
+        
+        # إنشاء رسالة نصية للطلب
         text_message = f"<b>✅ طلب جديد:</b>\n\n<b>- الاسم:</b> {order_details['customer']['name']}\n<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
+        
         if order_details['customer'].get('location'):
             lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
             text_message += f"<b>- الموقع:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>رابط</a>\n<b>- المسافة:</b> {distance:,.2f} متر\n"
+        
         total_price = 0
         total_qty = 0
         text_message += "\n<b>المنتجات:</b>\n"
@@ -372,14 +382,26 @@ def send_order():
             text_message += f"• {item_name} × {item_data['quantity']} = {item_total:,.0f} د.ع\n"
         text_message += f"\n<b>الإجمالي: {total_price:,.0f} د.ع</b>"
 
+        # إرسال الرسالة النصية
         send_telegram_message(text_message)
-        pdf_file = create_order_pdf(order_details, order_details.get('photo_link'))
+        
+        # إنشاء وإرسال ملف PDF
+        pdf_file = None
+        try:
+            pdf_file = create_order_pdf(order_details)
+        except Exception as pdf_error:
+            # طباعة الخطأ في console و إرساله لتيليجرام لتنبيهك
+            print(f"Error creating PDF: {pdf_error}")
+            send_telegram_message(f"🚨 خطأ في إنشاء الفاتورة لطلب {order_details['customer']['name']}: {pdf_error}")
+        
         if pdf_file:
             send_telegram_document(pdf_file, caption=f"فاتورة طلب {order_details['customer']['name']} - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        
         return jsonify({'status': 'success', 'message': 'تم إرسال الطلب والفاتورة بنجاح.'})
+    
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print(f"General error: {e}")
+        return jsonify({'status': 'error', 'message': f"حدث خطأ عام: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000), debug=True)
-
