@@ -5,13 +5,13 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Flowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.graphics.shapes import Drawing, Rect
+from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.charts.textlabels import Label
@@ -116,7 +116,37 @@ def get_file_link(file_id):
         print(f"خطأ في الحصول على رابط الملف: {e}")
         return None
 
-# إنشاء فاتورة PDF محسنة مع تصميم احترافي
+class GradientRect(Flowable):
+    def __init__(self, width, height, start_color, end_color, text, style):
+        super().__init__()
+        self.width = width
+        self.height = height
+        self.start_color = start_color
+        self.end_color = end_color
+        self.text = text
+        self.style = style
+
+    def wrap(self, availWidth, availHeight):
+        return self.width, self.height
+
+    def draw(self):
+        canvas = self.canv
+        # Draw the gradient rectangle
+        from reportlab.lib.colors import ReportlabTransGradColor
+        grad = ReportlabTransGradColor(self.start_color, self.end_color)
+        canvas.setFillColor(grad)
+        canvas.roundRect(0, 0, self.width, self.height, 10, fill=1, stroke=0)
+        
+        # Draw the text on top
+        text_obj = self.canv.beginText(self.width / 2, self.height / 2 - self.style.fontSize/2)
+        text_obj.setFont(self.style.fontName, self.style.fontSize)
+        text_obj.setFillColor(self.style.textColor)
+        text_obj.textOriginMode = 1  # Centered
+        text_obj.textAlignment = TA_CENTER
+        text_obj.textOut(self.text)
+        self.canv.drawText(text_obj)
+
+
 def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     print(f"محاولة إنشاء ملف PDF: {filename}")
     qr_img_path_customer = None
@@ -142,9 +172,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             fontName=ARABIC_FONT_BOLD,
             fontSize=16,
             textColor=colors.HexColor('#FFFFFF'),
-            alignment=TA_RIGHT,
-            spaceAfter=10,
-            spaceBefore=10,
+            alignment=TA_CENTER,
         ))
         styles.add(ParagraphStyle(
             'LabelText',
@@ -161,23 +189,6 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             textColor=colors.HexColor('#34495E'),
             alignment=TA_RIGHT,
             spaceAfter=15,
-        ))
-        styles.add(ParagraphStyle(
-            'TotalText',
-            fontName=ARABIC_FONT_BOLD,
-            fontSize=20,
-            textColor=colors.HexColor('#FFFFFF'),
-            alignment=TA_RIGHT,
-            spaceBefore=15,
-            spaceAfter=20,
-        ))
-        styles.add(ParagraphStyle(
-            'QRCodeLabel',
-            fontName=ARABIC_FONT,
-            fontSize=10,
-            textColor=colors.HexColor('#7F8C8D'),
-            alignment=TA_CENTER,
-            spaceAfter=5,
         ))
         styles.add(ParagraphStyle(
             'TableHeader',
@@ -204,45 +215,27 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'SummaryText',
             fontName=ARABIC_FONT_BOLD,
             fontSize=14,
-            textColor=colors.HexColor('#FFFFFF'),
+            textColor=colors.HexColor('#2C3E50'),
             alignment=TA_CENTER,
             spaceAfter=5,
         ))
-        
-        # إضافة خلفية متدرجة اللون للفاتورة
-        def add_gradient_background(canvas, doc):
-            canvas.saveState()
-            # رسم خلفية متدرجة
-            canvas.setFillColor(colors.HexColor('#2C3E50'))  # لون أزرق غامق
-            canvas.rect(0, 0, doc.width + doc.leftMargin + doc.rightMargin, 
-                       doc.height + doc.bottomMargin + doc.topMargin, fill=1, stroke=0)
-            canvas.restoreState()
+        styles.add(ParagraphStyle(
+            'QRCodeLabel',
+            fontName=ARABIC_FONT,
+            fontSize=10,
+            textColor=colors.HexColor('#7F8C8D'),
+            alignment=TA_CENTER,
+            spaceAfter=5,
+        ))
 
-        doc.build = lambda story, onFirstPage=add_gradient_background, onLaterPages=add_gradient_background: \
-            SimpleDocTemplate.build(doc, story, onFirstPage=onFirstPage, onLaterPages=onLaterPages)
-        
-        # رأس الفاتورة مع خلفية ملونة
-        header_table = Table([
-            [Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle'])]
-        ], colWidths=[7.5*inch])
-        header_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#E67E22')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#D35400')),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(header_table)
+        # رأس الفاتورة مع خلفية متدرجة
+        invoice_header_grad = GradientRect(doc.width, 0.7*inch, colors.HexColor('#E67E22'), colors.HexColor('#D35400'), rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle'])
+        story.append(invoice_header_grad)
         story.append(Spacer(1, 0.3 * inch))
 
-        # معلومات العميل والطلب مع تصميم بطاقة
-        customer_card = Table([
-            [Paragraph(rtl("👤 معلومات العميل"), styles['SectionHeader'])]
-        ], colWidths=[7.5*inch])
-        customer_card.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#3498DB')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#2980B9')),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(customer_card)
+        # معلومات العميل والطلب مع تصميم بطاقة متدرجة
+        customer_header_grad = GradientRect(doc.width, 0.5*inch, colors.HexColor('#3498DB'), colors.HexColor('#2980B9'), rtl("👤 معلومات العميل"), styles['SectionHeader'])
+        story.append(customer_header_grad)
         
         info_data = [
             [Paragraph(rtl("<b>الاسم:</b>"), styles['LabelText']), Paragraph(rtl(order_details['customer']['name']), styles['ValueText'])],
@@ -250,30 +243,22 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             [Paragraph(rtl("<b>تاريخ الطلب:</b>"), styles['LabelText']), Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])],
         ]
         
-        # تحسين مظهر حقول المعلومات
         info_table = Table(info_data, colWidths=[1.5*inch, 5.5*inch])
         info_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#EBF5FB')),
-            ('BACKGROUND', (0,1), (-1,1), colors.HexColor('#D6EAF8')),
-            ('BACKGROUND', (0,2), (-1,2), colors.HexColor('#EBF5FB')),
-            ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#AED6F1')),
-            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#85C1E9')),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8F9F9')),
+            ('BACKGROUND', (0,1), (-1,1), colors.HexColor('#EAF2F8')),
+            ('BACKGROUND', (0,2), (-1,2), colors.HexColor('#F8F9F9')),
+            ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#D5D8DC')),
+            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BDC3C7')),
         ]))
         story.append(info_table)
         story.append(Spacer(1, 0.3 * inch))
 
         # جدول المنتجات مع تصميم مميز
-        products_header = Table([
-            [Paragraph(rtl("🛒 تفاصيل المنتجات"), styles['SectionHeader'])]
-        ], colWidths=[7.5*inch])
-        products_header.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2ECC71')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#27AE60')),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(products_header)
+        products_header_grad = GradientRect(doc.width, 0.5*inch, colors.HexColor('#2ECC71'), colors.HexColor('#27AE60'), rtl("🛒 تفاصيل المنتجات"), styles['SectionHeader'])
+        story.append(products_header_grad)
         
         table_header = [
             Paragraph(rtl("السعر الإجمالي"), styles['TableHeader']),
@@ -299,12 +284,14 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             ])
 
         # إضافة صف الإجماليات داخل الجدول
-        table_data.append([
-            Paragraph(rtl(f"<b>{total_price_num:,.0f} د.ع</b>"), styles['TableData']),
-            Paragraph(rtl("المجموع"), styles['TableData']),
-            Paragraph(rtl(f"<b>{items_count}</b>"), styles['TableData']),
-            Paragraph(rtl("الإجمالي"), styles['TableData'])
-        ])
+        summary_row_data = [
+            Paragraph(rtl(f"<b>{total_price_num:,.0f} د.ع</b>"), styles['TableHeader']),
+            Paragraph(rtl("المجموع"), styles['TableHeader']),
+            Paragraph(rtl(f"<b>{items_count}</b>"), styles['TableHeader']),
+            Paragraph(rtl("الإجمالي"), styles['TableHeader'])
+        ]
+        
+        table_data.append(summary_row_data)
 
         table_style = TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -319,8 +306,8 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             ('TOPPADDING', (0, 0), (-1, 0), 10),
             ('BOTTOMPADDING', (0, -1), (-1, -1), 10),
             ('TOPPADDING', (0, -1), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#AEB6BF')),
-            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#2E4053')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#BDC3C7')),
+            ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#2C3E50')),
         ])
         
         order_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 2.5*inch])
@@ -329,47 +316,32 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         story.append(Spacer(1, 0.3 * inch))
 
         # قسم ملخص الطلب مع تصميم بطاقة
-        summary_card = Table([
-            [Paragraph(rtl("📊 ملخص الطلب"), styles['SectionHeader'])]
-        ], colWidths=[7.5*inch])
-        summary_card.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#9B59B6')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#8E44AD')),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(summary_card)
+        summary_header_grad = GradientRect(doc.width, 0.5*inch, colors.HexColor('#9B59B6'), colors.HexColor('#8E44AD'), rtl("📊 ملخص الطلب"), styles['SectionHeader'])
+        story.append(summary_header_grad)
         
         summary_data = [
-            [Paragraph(rtl("عدد المنتجات"), styles['SummaryText']), Paragraph(rtl(str(items_count)), styles['SummaryText'])],
-            [Paragraph(rtl("المجموع الإجمالي"), styles['SummaryText']), Paragraph(rtl(f"{total_price_num:,.0f} د.ع"), styles['SummaryText'])]
+            [Paragraph(rtl("عدد المنتجات:"), styles['SummaryText']), Paragraph(rtl(str(items_count)), styles['SummaryText'])],
+            [Paragraph(rtl("المجموع الإجمالي:"), styles['SummaryText']), Paragraph(rtl(f"{total_price_num:,.0f} د.ع"), styles['SummaryText'])]
         ]
         
         summary_table = Table(summary_data, colWidths=[3.5*inch, 3.5*inch])
         summary_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#8E44AD')),
-            ('BACKGROUND', (1, 0), (1, -1), colors.HexColor('#3498DB')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#5D6D7E')),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8F9F9')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#D5D8DC')),
             ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#2C3E50')),
         ]))
         story.append(summary_table)
         story.append(Spacer(1, 0.4 * inch))
 
         # باركودات الموقع مع تصميم بطاقة
-        locations_card = Table([
-            [Paragraph(rtl("📍 مواقع مهمة"), styles['SectionHeader'])]
-        ], colWidths=[7.5*inch])
-        locations_card.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#E74C3C')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#CB4335')),
-            ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-        ]))
-        story.append(locations_card)
+        locations_header_grad = GradientRect(doc.width, 0.5*inch, colors.HexColor('#F1C40F'), colors.HexColor('#F39C12'), rtl("📍 مواقع مهمة"), styles['SectionHeader'])
+        story.append(locations_header_grad)
         story.append(Spacer(1, 0.2 * inch))
         
-        qr_data = []
-
+        qr_table_data = [[],[]]
+        
         # باركود موقع المتجر
         qr_data_market = f"https://www.google.com/maps/search/?api=1&query={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
         qr_img_market = qrcode.make(qr_data_market)
@@ -378,7 +350,8 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         market_image = Image(qr_img_path_market)
         market_image.drawHeight = 1.5 * inch
         market_image.drawWidth = 1.5 * inch
-        qr_data.append([market_image, Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel'])])
+        qr_table_data[0].append(market_image)
+        qr_table_data[1].append(Paragraph(rtl("امسح لموقع المتجر"), styles['QRCodeLabel']))
         
         # باركود موقع العميل
         if order_details['customer']['location']:
@@ -391,43 +364,21 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             customer_image = Image(qr_img_path_customer)
             customer_image.drawHeight = 1.5 * inch
             customer_image.drawWidth = 1.5 * inch
-            qr_data.append([customer_image, Paragraph(rtl("امسح لموقع العميل"), styles['QRCodeLabel'])])
+            qr_table_data[0].append(customer_image)
+            qr_table_data[1].append(Paragraph(rtl("امسح لموقع العميل"), styles['QRCodeLabel']))
             
             # حساب المسافة وإضافتها
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
-            distance_text = Table([
-                [Paragraph(rtl(f"<b>المسافة بين المتجر والعميل:</b> {distance:,.2f} متر"), styles['LabelText'])]
-            ], colWidths=[7*inch])
-            distance_text.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F9E79F')),
-                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#F1C40F')),
-            ]))
+            distance_text = Paragraph(rtl(f"<b>المسافة بين المتجر والعميل:</b> {distance:,.2f} متر"), styles['LabelText'])
             story.append(distance_text)
             story.append(Spacer(1, 0.2 * inch))
         else:
-            no_location = Table([
-                [Paragraph(rtl("<b>ملاحظة:</b> لم يتم توفير موقع العميل."), styles['LabelText'])]
-            ], colWidths=[7*inch])
-            no_location.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F5B7B1')),
-                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#E74C3C')),
-            ]))
+            no_location = Paragraph(rtl("<b>ملاحظة:</b> لم يتم توفير موقع العميل."), styles['LabelText'])
             story.append(no_location)
             story.append(Spacer(1, 0.2 * inch))
         
         # باركود الصورة المرفقة
         if photo_link:
-            photo_card = Table([
-                [Paragraph(rtl("🖼️ الصورة المرفقة"), styles['SectionHeader'])]
-            ], colWidths=[7.5*inch])
-            photo_card.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F39C12')),
-                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#D68910')),
-                ('ROUNDEDCORNERS', [10, 10, 10, 10]),
-            ]))
-            story.append(photo_card)
-            story.append(Spacer(1, 0.2 * inch))
-
             qr_img_photo = qrcode.make(photo_link)
             qr_img_path_photo = "qr_photo.png"
             qr_img_photo.save(qr_img_path_photo)
@@ -436,29 +387,22 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             photo_image_qr.drawHeight = 1.5 * inch
             photo_image_qr.drawWidth = 1.5 * inch
 
-            qr_data.append([photo_image_qr, Paragraph(rtl("امسح لرؤية الصورة"), styles['QRCodeLabel'])])
+            qr_table_data[0].append(photo_image_qr)
+            qr_table_data[1].append(Paragraph(rtl("امسح لرؤية الصورة"), styles['QRCodeLabel']))
             
         # إنشاء الجدول للباركودات
-        qr_table_data = [[item[0] for item in qr_data], [item[1] for item in qr_data]]
-        qr_table = Table(qr_table_data, colWidths=[2*inch] * len(qr_data), hAlign='CENTER')
+        qr_table = Table(qr_table_data, colWidths=[2*inch] * len(qr_table_data[0]), hAlign='CENTER')
         qr_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8F9F9')),
         ]))
         
         story.append(qr_table)
         story.append(Spacer(1, 0.5 * inch))
 
         # تذييل الفاتورة
-        footer = Table([
-            [Paragraph(rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), styles['FooterStyle'])]
-        ], colWidths=[7.5*inch])
-        footer.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2C3E50')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#1B2631')),
-        ]))
-        story.append(footer)
+        footer_grad = GradientRect(doc.width, 0.4*inch, colors.HexColor('#2C3E50'), colors.HexColor('#1B2631'), rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), styles['FooterStyle'])
+        story.append(footer_grad)
 
         doc.build(story)
         print(f"تم إنشاء ملف PDF بنجاح: {filename}")
