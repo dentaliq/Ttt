@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, Frame, PageTemplate
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -94,29 +94,78 @@ def get_file_link(file_id):
         print(f"خطأ الحصول على رابط: {e}")
         return None
 
+# دالة لرسم خلفية الصفحة
+def page_background(canvas, doc):
+    canvas.saveState()
+    # Gradient background
+    p1 = (0, 0)
+    p2 = (doc.width + 2 * doc.leftMargin, doc.height + 2 * doc.topMargin)
+    canvas.setFillColorRGB(0.9, 0.95, 1)
+    canvas.rect(p1[0], p1[1], p2[0], p2[1], fill=1)
+    canvas.linearGradient(0, 0, p2[0], p2[1], (colors.HexColor('#F5F7FA'), colors.HexColor('#C3CFE2')))
+    # Top bar
+    canvas.setFillColor(colors.HexColor('#1E3D59'))
+    canvas.rect(0, doc.height + doc.topMargin + doc.bottomMargin - 50, doc.width + 2 * doc.leftMargin, 50, fill=1)
+    # Bottom bar
+    canvas.setFillColor(colors.HexColor('#1E3D59'))
+    canvas.rect(0, 0, doc.width + 2 * doc.leftMargin, 20, fill=1)
+    canvas.restoreState()
+
 # إنشاء PDF للطلب
 def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     qr_img_path_customer, qr_img_path_market, qr_img_path_photo = None, None, None
     try:
-        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
-        story = []
+        # Custom styles with better aesthetics
         styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle('InvoiceTitle', fontName=ARABIC_FONT_BOLD, fontSize=22, textColor=colors.white, alignment=TA_CENTER))
-        styles.add(ParagraphStyle('SectionHeader', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=colors.white, alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('LabelText', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.HexColor('#2C3E50'), alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('ValueText', fontName=ARABIC_FONT, fontSize=12, textColor=colors.HexColor('#34495E'), alignment=TA_RIGHT))
-        styles.add(ParagraphStyle('TableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.white, alignment=TA_CENTER))
-        styles.add(ParagraphStyle('TableData', fontName=ARABIC_FONT, fontSize=11, textColor=colors.HexColor('#2C3E50'), alignment=TA_CENTER))
-        styles.add(ParagraphStyle('QRCodeLabel', fontName=ARABIC_FONT, fontSize=10, textColor=colors.HexColor('#7F8C8D'), alignment=TA_CENTER))
+        styles.add(ParagraphStyle('InvoiceTitle', fontName=ARABIC_FONT_BOLD, fontSize=28, textColor=colors.HexColor('#FFFFFF'), alignment=TA_CENTER, leading=30))
+        styles.add(ParagraphStyle('SectionHeader', fontName=ARABIC_FONT_BOLD, fontSize=16, textColor=colors.HexColor('#1E3D59'), alignment=TA_RIGHT, spaceBefore=10, spaceAfter=5))
+        styles.add(ParagraphStyle('LabelText', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.HexColor('#3C4043'), alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('ValueText', fontName=ARABIC_FONT, fontSize=12, textColor=colors.HexColor('#6B6E70'), alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('TableHeader', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.HexColor('#FFFFFF'), alignment=TA_CENTER, leading=15))
+        styles.add(ParagraphStyle('TableData', fontName=ARABIC_FONT, fontSize=11, textColor=colors.HexColor('#3C4043'), alignment=TA_CENTER, leading=14))
+        styles.add(ParagraphStyle('SummaryLabel', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=colors.HexColor('#1E3D59'), alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('SummaryValue', fontName=ARABIC_FONT_BOLD, fontSize=14, textColor=colors.HexColor('#C1292E'), alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('TotalValue', fontName=ARABIC_FONT_BOLD, fontSize=18, textColor=colors.HexColor('#C1292E'), alignment=TA_RIGHT))
+        styles.add(ParagraphStyle('QRCodeLabel', fontName=ARABIC_FONT_BOLD, fontSize=10, textColor=colors.HexColor('#1E3D59'), alignment=TA_CENTER))
+        
+        doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+        story = []
 
-        # بيانات العميل
-        info_data = [
-            [Paragraph(rtl("الاسم:"), styles['LabelText']), Paragraph(rtl(order_details['customer']['name']), styles['ValueText'])],
-            [Paragraph(rtl("الهاتف:"), styles['LabelText']), Paragraph(rtl(order_details['customer']['phone']), styles['ValueText'])],
-            [Paragraph(rtl("تاريخ الطلب:"), styles['LabelText']), Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])],
+        # Header for the PDF
+        story.append(Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle']))
+        story.append(Spacer(1, 0.4*inch))
+
+        # Customer and Order Details Section
+        customer_info_data = [
+            [
+                Paragraph(rtl("الاسم:"), styles['LabelText']),
+                Paragraph(rtl(order_details['customer']['name']), styles['ValueText'])
+            ],
+            [
+                Paragraph(rtl("الهاتف:"), styles['LabelText']),
+                Paragraph(rtl(order_details['customer']['phone']), styles['ValueText'])
+            ],
+            [
+                Paragraph(rtl("تاريخ الطلب:"), styles['LabelText']),
+                Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])
+            ]
         ]
-
-        # جدول المنتجات
+        
+        # Adding a frame or box around customer details
+        info_table = Table(customer_info_data, colWidths=[1.5*inch, doc.width-1.5*inch])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#EFEFEF')),
+            ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#CCCCCC')),
+            ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor('#CCCCCC')),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Products Table
         table_header = [
             Paragraph(rtl("السعر الإجمالي"), styles['TableHeader']),
             Paragraph(rtl("السعر"), styles['TableHeader']),
@@ -135,49 +184,79 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
                 Paragraph(rtl(str(item_data['quantity'])), styles['TableData']),
                 Paragraph(rtl(item_name), styles['TableData'])
             ])
+        
+        products_table = Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch], repeatRows=1)
+        products_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4B77A8')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#AAAAAA')),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8)
+        ]))
+        story.append(products_table)
+        story.append(Spacer(1, 0.3*inch))
 
+        # Summary and QR codes section
         summary_data = [
-            [Paragraph(rtl("عدد المنتجات"), styles['LabelText']), Paragraph(rtl(str(total_qty)), styles['ValueText'])],
-            [Paragraph(rtl("المجموع الكلي"), styles['LabelText']), Paragraph(rtl(f"{total_price:,.0f} د.ع"), styles['ValueText'])]
+            [
+                Paragraph(rtl("المجموع الكلي"), styles['SummaryLabel']),
+                Paragraph(rtl(f"{total_price:,.0f} د.ع"), styles['TotalValue'])
+            ],
+            [
+                Paragraph(rtl("عدد المنتجات"), styles['SummaryLabel']),
+                Paragraph(rtl(str(total_qty)), styles['SummaryValue'])
+            ]
         ]
+        summary_table = Table(summary_data, colWidths=[doc.width/2, doc.width/2])
+        summary_table.setStyle(TableStyle([
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(summary_table)
+        story.append(Spacer(1, 0.4*inch))
 
-        # QR لموقع المتجر
+        # QR Codes
         qr_table_data = [[], []]
+        
+        # QR for Market Location
         qr_data_market = f"https://www.google.com/maps/search/?api=1&query={MARKET_LOCATION['lat']},{MARKET_LOCATION['lng']}"
         qr_img_path_market = "qr_market.png"
         qrcode.make(qr_data_market).save(qr_img_path_market)
-        img_market = Image(qr_img_path_market, 1.5*inch, 1.5*inch)
+        img_market = Image(qr_img_path_market, 1.2*inch, 1.2*inch)
         qr_table_data[0].append(img_market)
         qr_table_data[1].append(Paragraph(rtl("موقع المتجر"), styles['QRCodeLabel']))
-
+        
+        # QR for Customer Location
         if order_details['customer'].get('location'):
             lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
+            qr_data_customer = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
             qr_img_path_customer = "qr_customer.png"
-            qrcode.make(f"https://www.google.com/maps/search/?api=1&query={lat},{lng}").save(qr_img_path_customer)
-            img_customer = Image(qr_img_path_customer, 1.5*inch, 1.5*inch)
+            qrcode.make(qr_data_customer).save(qr_img_path_customer)
+            img_customer = Image(qr_img_path_customer, 1.2*inch, 1.2*inch)
             qr_table_data[0].append(img_customer)
             qr_table_data[1].append(Paragraph(rtl("موقع العميل"), styles['QRCodeLabel']))
 
+        # QR for Photo Link
         if photo_link:
             qr_img_path_photo = "qr_photo.png"
             qrcode.make(photo_link).save(qr_img_path_photo)
-            img_photo = Image(qr_img_path_photo, 1.5*inch, 1.5*inch)
+            img_photo = Image(qr_img_path_photo, 1.2*inch, 1.2*inch)
             qr_table_data[0].append(img_photo)
             qr_table_data[1].append(Paragraph(rtl("صورة الطلب"), styles['QRCodeLabel']))
 
-        qr_table = Table(qr_table_data, colWidths=[2*inch]*len(qr_table_data[0]))
-
-        story.append(Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle']))
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Table(info_data, colWidths=[2*inch, doc.width-2*inch]))
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Table(products_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, doc.width-4*inch]))
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Table(summary_data, colWidths=[doc.width/2, doc.width/2]))
-        story.append(Spacer(1, 0.2*inch))
+        qr_table = Table(qr_table_data, colWidths=[1.5*inch]*len(qr_table_data[0]))
+        qr_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10)
+        ]))
         story.append(qr_table)
 
-        doc.build(story)
+        doc.build(story, onFirstPage=page_background, onLaterPages=page_background)
         return filename
     finally:
         for p in [qr_img_path_customer, qr_img_path_market, qr_img_path_photo]:
