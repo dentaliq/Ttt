@@ -109,7 +109,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         # Custom styles with better aesthetics
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle('InvoiceTitle', fontName=ARABIC_FONT_BOLD, fontSize=24, textColor=colors.HexColor('#000000'), alignment=TA_CENTER, leading=30))
-        styles.add(ParagraphStyle('InvoiceNumber', fontName=ARABIC_FONT, fontSize=12, alignment=TA_CENTER, textColor=colors.HexColor('#6B6E70')))
+        styles.add(ParagraphStyle('InvoiceDate', fontName=ARABIC_FONT, fontSize=12, alignment=TA_CENTER, textColor=colors.HexColor('#6B6E70')))
         styles.add(ParagraphStyle('SectionHeader', fontName=ARABIC_FONT_BOLD, fontSize=16, textColor=colors.HexColor('#3C4043'), alignment=TA_RIGHT, spaceBefore=10, spaceAfter=5))
         styles.add(ParagraphStyle('LabelText', fontName=ARABIC_FONT_BOLD, fontSize=12, textColor=colors.HexColor('#3C4043'), alignment=TA_RIGHT))
         styles.add(ParagraphStyle('ValueText', fontName=ARABIC_FONT, fontSize=12, textColor=colors.HexColor('#6B6E70'), alignment=TA_RIGHT))
@@ -119,14 +119,15 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         styles.add(ParagraphStyle('TotalValue', fontName=ARABIC_FONT_BOLD, fontSize=20, textColor=colors.HexColor('#34B53A'), alignment=TA_RIGHT)) # Green color for total
         styles.add(ParagraphStyle('FooterText', fontName=ARABIC_FONT, fontSize=10, textColor=colors.HexColor('#6B6E70'), alignment=TA_CENTER))
         styles.add(ParagraphStyle('QRCodeLabel', fontName=ARABIC_FONT_BOLD, fontSize=10, textColor=colors.HexColor('#1E3D59'), alignment=TA_CENTER))
+        styles.add(ParagraphStyle('DistanceText', fontName=ARABIC_FONT, fontSize=12, textColor=colors.HexColor('#1E3D59'), alignment=TA_RIGHT, spaceBefore=15))
 
         doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
         story = []
 
         # Header for the PDF
         story.append(Paragraph(rtl("فاتورة طلب من سوبر ماركت العراق"), styles['InvoiceTitle']))
-        invoice_date_text = rtl(f"رقم الفاتورة: {order_details.get('invoice_id', 'N/A')} | التاريخ: {datetime.now().strftime('%Y-%m-%d')}")
-        story.append(Paragraph(invoice_date_text, styles['InvoiceNumber']))
+        invoice_date_text = rtl(f"التاريخ: {datetime.now().strftime('%Y-%m-%d')}")
+        story.append(Paragraph(invoice_date_text, styles['InvoiceDate']))
         story.append(Spacer(1, 0.4*inch))
         
         # Customer and Order Details Section
@@ -192,11 +193,13 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         # Total Box
         total_data = [
             [
+                Paragraph(rtl("عدد المنتجات"), styles['SummaryLabel']),
+                Paragraph(rtl(str(total_qty)), styles['SummaryValue']),
                 Paragraph(rtl("المجموع الكلي"), styles['TotalLabel']),
                 Paragraph(rtl(f"{total_price:,.0f} د.ع"), styles['TotalValue'])
             ]
         ]
-        total_table = Table(total_data, colWidths=[doc.width/2, doc.width/2])
+        total_table = Table(total_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, doc.width-4.5*inch])
         total_table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#2C3E50')), # Navy blue background
             ('LEFTPADDING', (0,0), (-1,-1), 15),
@@ -206,6 +209,13 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         ]))
         story.append(total_table)
         story.append(Spacer(1, 0.4*inch))
+
+        # Customer distance note
+        if order_details['customer'].get('location'):
+            lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
+            distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
+            distance_text = rtl(f"مسافة العميل من المتجر: {distance:,.2f} متر")
+            story.append(Paragraph(distance_text, styles['DistanceText']))
 
         # Notes section
         story.append(Paragraph(rtl("شكراً لتعاملكم معنا."), styles['FooterText']))
@@ -290,8 +300,6 @@ def send_photo():
 def send_order():
     try:
         order_details = request.get_json()
-        # You can add an invoice ID here if your system generates one
-        order_details['invoice_id'] = f"{order_details['customer']['phone']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
         text_message = f"<b>✅ طلب جديد:</b>\n\n<b>- الاسم:</b> {order_details['customer']['name']}\n<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
         if order_details['customer'].get('location'):
@@ -299,10 +307,12 @@ def send_order():
             distance = haversine_distance(MARKET_LOCATION['lat'], MARKET_LOCATION['lng'], lat, lng)
             text_message += f"<b>- الموقع:</b> <a href='https://www.google.com/maps/search/?api=1&query={lat},{lng}'>رابط</a>\n<b>- المسافة:</b> {distance:,.2f} متر\n"
         total_price = 0
+        total_qty = 0
         text_message += "\n<b>المنتجات:</b>\n"
         for item_name, item_data in order_details['items'].items():
             item_total = item_data['price'] * item_data['quantity']
             total_price += item_total
+            total_qty += item_data['quantity']
             text_message += f"• {item_name} × {item_data['quantity']} = {item_total:,.0f} د.ع\n"
         text_message += f"\n<b>الإجمالي: {total_price:,.0f} د.ع</b>"
 
