@@ -5,7 +5,7 @@ import math
 import qrcode
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Flowable
+from reportlab.platytus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, Flowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
@@ -112,7 +112,6 @@ def get_file_link(file_id):
     except requests.exceptions.RequestException as e:
         print(f"خطأ في الحصول على رابط الملف: {e}")
         return None
-
 
 def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
     print(f"محاولة إنشاء ملف PDF: {filename}")
