@@ -83,8 +83,8 @@ def send_telegram_document(file_path, chat_id=CHAT_ID, caption=''):
             payload = {'chat_id': chat_id, 'caption': caption}
             response = requests.post(url, data=payload, files=files, timeout=30)
             response.raise_for_status()
-            os.remove(file_path)
-            return response
+        os.remove(file_path)
+        return response
     except Exception as e:
         print(f"خطأ إرسال PDF: {e}")
         return None
@@ -139,7 +139,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         COLOR_TEXT_LIGHT = colors.HexColor('#6B6E70')
         COLOR_TABLE_BG1 = colors.HexColor('#F5F7FA')
         COLOR_SPECIAL_BG = colors.HexColor('#E8F5E9')
-        
+
         # Custom styles
         styles = getSampleStyleSheet()
         styles.add(ParagraphStyle('InvoiceTitle', fontName=ARABIC_FONT_BOLD, fontSize=28, textColor=colors.white, alignment=TA_CENTER, leading=32))
@@ -242,6 +242,29 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         story.append(products_table)
         story.append(Spacer(1, 0.3*inch))
 
+        # Add Summary Section below the products table
+        summary_data = [
+            [
+                Paragraph(rtl(f"{total_price:,.0f} د.ع"), styles['TotalValue']),
+                Paragraph(rtl("الإجمالي:"), styles['TotalLabel'])
+            ],
+            [
+                Paragraph(rtl(str(total_qty)), styles['SummaryValue']),
+                Paragraph(rtl("الكمية الإجمالية:"), styles['SummaryLabel'])
+            ]
+        ]
+        summary_table = Table(summary_data, colWidths=[3*inch, doc.width-3*inch])
+        summary_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'RIGHT'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(summary_table)
+        story.append(Spacer(1, 0.3*inch))
+
         # QR Codes Section with improved design
         if order_details['customer'].get('location') or photo_link:
             story.append(Paragraph(rtl("رموز QR للوصول السريع"), styles['SectionHeader']))
@@ -288,7 +311,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             
             # Create tables for QR codes
             qr_images_table = Table([qr_images_row], colWidths=[1.5*inch]*len(qr_images_row))
-            qr_labels_table = Table([qr_labels_row], colWidths=[1.5*inch]*len(qr_labels_row))
+            qr_labels_table = Table([qr_images_row], colWidths=[1.5*inch]*len(qr_labels_row)) # Changed from qr_labels_table = Table([qr_labels_row], colWidths=[1.5*inch]*len(qr_labels_row))
             
             # Style the QR tables
             qr_style = TableStyle([
@@ -330,7 +353,6 @@ def send_photo():
         photo_file = request.files['photo']
         if photo_file.filename == '':
             return jsonify({'status': 'error', 'message': 'لم يتم اختيار ملف.'}), 400
-
         caption = request.form.get('caption', 'صورة مرفقة بالطلب.')
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
@@ -355,7 +377,6 @@ def send_photo():
 def send_order():
     try:
         order_details = request.get_json()
-        
         text_message = f"<b>✅ طلب جديد:</b>\n\n<b>- الاسم:</b> {order_details['customer']['name']}\n<b>- الهاتف:</b> {order_details['customer']['phone']}\n"
         if order_details['customer'].get('location'):
             lat, lng = order_details['customer']['location']['lat'], order_details['customer']['location']['lng']
