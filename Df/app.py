@@ -130,7 +130,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'InvoiceTitle',
             fontName=ARABIC_FONT_BOLD,
             fontSize=30,
-            textColor=colors.HexColor('#2c3e50'),
+            textColor=colors.HexColor('#2C3E50'),
             alignment=TA_CENTER,
             spaceAfter=5,
         ))
@@ -138,7 +138,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'SectionHeader',
             fontName=ARABIC_FONT_BOLD,
             fontSize=16,
-            textColor=colors.HexColor('#1a5276'),
+            textColor=colors.HexColor('#2980B9'),
             alignment=TA_RIGHT,
             spaceAfter=10,
         ))
@@ -146,7 +146,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'LabelText',
             fontName=ARABIC_FONT_BOLD,
             fontSize=12,
-            textColor=colors.HexColor('#4a4a4a'),
+            textColor=colors.HexColor('#34495E'),
             alignment=TA_RIGHT,
             spaceAfter=5,
         ))
@@ -154,7 +154,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'ValueText',
             fontName=ARABIC_FONT,
             fontSize=12,
-            textColor=colors.HexColor('#1c2833'),
+            textColor=colors.HexColor('#1C2833'),
             alignment=TA_RIGHT,
             spaceAfter=15,
         ))
@@ -162,7 +162,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'TotalText',
             fontName=ARABIC_FONT_BOLD,
             fontSize=22,
-            textColor=colors.HexColor('#cb4335'),
+            textColor=colors.HexColor('#E74C3C'),
             alignment=TA_RIGHT,
             spaceBefore=15,
             spaceAfter=20,
@@ -171,7 +171,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'QRCodeLabel',
             fontName=ARABIC_FONT,
             fontSize=10,
-            textColor=colors.HexColor('#7f8c8d'),
+            textColor=colors.HexColor('#7F8C8D'),
             alignment=TA_CENTER,
             spaceAfter=5,
         ))
@@ -179,14 +179,21 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             'TableHeader',
             fontName=ARABIC_FONT_BOLD,
             fontSize=12,
-            textColor=colors.HexColor('#ffffff'),
+            textColor=colors.HexColor('#FFFFFF'),
             alignment=TA_CENTER,
         ))
         styles.add(ParagraphStyle(
             'TableData',
             fontName=ARABIC_FONT,
             fontSize=11,
-            textColor=colors.HexColor('#1c2833'),
+            textColor=colors.HexColor('#1C2833'),
+            alignment=TA_CENTER,
+        ))
+        styles.add(ParagraphStyle(
+            'FooterStyle',
+            fontName=ARABIC_FONT,
+            fontSize=10,
+            textColor=colors.HexColor('#7F8C8D'),
             alignment=TA_CENTER,
         ))
         
@@ -203,10 +210,15 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             [Paragraph(rtl("<b>تاريخ الطلب:</b>"), styles['LabelText']), Paragraph(rtl(datetime.now().strftime('%Y-%m-%d %H:%M')), styles['ValueText'])],
         ]
         
+        # تحسين مظهر حقول المعلومات
         info_table = Table(info_data, colWidths=[1.5*inch, 5*inch])
         info_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F8F9FA')),
+            ('BACKGROUND', (0,1), (-1,1), colors.HexColor('#E9ECEF')),
+            ('BACKGROUND', (0,2), (-1,2), colors.HexColor('#F8F9FA')),
+            ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#DEE2E6')),
         ]))
         story.append(info_table)
         story.append(Spacer(1, 0.3 * inch))
@@ -242,12 +254,12 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('FONTNAME', (0, 0), (-1, -1), ARABIC_FONT),
             ('FONTNAME', (0, 0), (-1, 0), ARABIC_FONT_BOLD),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1abc9c')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#ffffff')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1ABC9C')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#FFFFFF')),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('TOPPADDING', (0, 0), (-1, 0), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e9ecef')),
-            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E9ECEF')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#DEE2E6')),
         ])
         
         order_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1*inch, 2.5*inch])
@@ -257,16 +269,17 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
 
         # قسم الإجمالي
         total_summary_data = [
-            [Paragraph(rtl("عدد المنتجات:"), styles['LabelText']), Paragraph(rtl(f"{items_count}"), styles['ValueText'])],
             [Paragraph(rtl("المجموع الإجمالي:"), styles['TotalText']), Paragraph(rtl(f"{total_price_num:,.0f} د.ع"), styles['TotalText'])]
         ]
         
-        total_summary_table = Table(total_summary_data, colWidths=[4*inch, 2.5*inch])
-        total_summary_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        # محاكاة تأثير الظل باستخدام جدول إضافي
+        total_summary_table_shadow = Table(total_summary_data, colWidths=[4*inch, 2.5*inch])
+        total_summary_table_shadow.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#E9ECEF')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
         ]))
-        story.append(total_summary_table)
+        story.append(total_summary_table_shadow)
         story.append(Spacer(1, 0.4 * inch))
 
         # باركودات الموقع
@@ -333,14 +346,7 @@ def create_order_pdf(order_details, photo_link=None, filename="order.pdf"):
         story.append(Spacer(1, 0.5 * inch))
 
         # تذييل الفاتورة
-        footer_style = ParagraphStyle(
-            'FooterStyle',
-            fontName=ARABIC_FONT,
-            fontSize=10,
-            textColor=colors.HexColor('#7f8c8d'),
-            alignment=TA_CENTER,
-        )
-        story.append(Paragraph(rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), footer_style))
+        story.append(Paragraph(rtl("شكراً لثقتكم بنا. نتمنى لكم يوماً سعيداً."), styles['FooterStyle']))
 
         doc.build(story)
         print(f"تم إنشاء ملف PDF بنجاح: {filename}")
